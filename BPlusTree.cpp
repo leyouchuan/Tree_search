@@ -16,7 +16,7 @@
 #include <queue>
 #include <unordered_set>
 
-namespace hw6 {
+/*namespace hw6 {
 
     static inline double clamp01(double v) {
         if (v < 0.0) return 0.0;
@@ -97,7 +97,7 @@ namespace hw6 {
         }
         return first;
     }*/
-
+/*
     // helper: build one upper level given a vector of child nodes (level)
     // returns pointer to first node in new upper level (linked via children vector order)
     hw6::BPlusNode* hw6::BPlusTree::buildUpperLevel(const std::vector<BPlusNode*>& level) {
@@ -145,7 +145,7 @@ namespace hw6 {
         return parents.empty() ? nullptr : parents.front();
     }
 
-    hw6::BPlusNode* hw6::BPlusTree::buildLeaves(const std::vector<BPlusNode::Entry>& sorted) {
+/*    hw6::BPlusNode* hw6::BPlusTree::buildLeaves(const std::vector<BPlusNode::Entry>& sorted) {
         if (sorted.empty()) return nullptr;
 
         BPlusNode* first = nullptr;
@@ -199,8 +199,310 @@ namespace hw6 {
 
         return first;
     }
+    // B+ 树按分隔键向下搜索叶节点
+    BPlusNode* BPlusTree::findLeafByHilbert(uint64_t h) const {
+        if (!root) return nullptr;
 
-    // main: bulk-load constructTree (single-h per feature using envelope center)
+        BPlusNode* cur = root;
+        while (cur && !cur->isLeaf) {
+            // 二分查找
+            size_t idx = std::upper_bound(cur->keys.begin(), cur->keys.end(), h) - cur->keys.begin();
+            if (idx >= cur->children.size()) idx = cur->children.size() - 1;
+            cur = cur->children[idx];
+        }
+        return cur;
+    }
+
+    BPlusNode* BPlusNode::createLeaf() {
+        BPlusNode* n = new BPlusNode(true);
+        n->isLeaf = true;
+        n->parent = nullptr;
+        n->next = nullptr;
+        n->keys.clear();
+        n->children.clear();
+        n->entries.clear();
+        n->h_min = 0;
+        n->h_max = 0;
+        return n;
+    }
+
+    BPlusNode* BPlusNode::createInternal() {
+        BPlusNode* n = new BPlusNode(false);
+        n->isLeaf = false;
+        n->parent = nullptr;
+        n->next = nullptr;
+        n->keys.clear();
+        n->children.clear();
+        n->entries.clear();
+        n->h_min = 0;
+        n->h_max = 0;
+        return n;
+    }
+
+    size_t BPlusNode::maxKeys() const {
+        return 8; // 或你期望的默认值
+    }
+    // 插入单个条目到 B+ 树（按 hilbert 值排序位置插入）
+
+    bool hw6::BPlusTree::insertByHilbert(uint64_t h, uint32_t fid, int gx, int gy) {
+        // prepare entry
+        BPlusNode::Entry ent;
+        ent.h = h;
+        ent.fid = fid;
+        ent.gx = gx;
+        ent.gy = gy;
+
+        // empty tree -> create first leaf
+        if (!root) {
+            BPlusNode* leaf = BPlusNode::createLeaf();
+            leaf->entries.push_back(ent);
+            // safe because we just pushed one entry
+            leaf->h_min = leaf->entries.front().h;
+            leaf->h_max = leaf->entries.back().h;
+            root = leaf;
+            root->parent = nullptr;
+            return true;
+        }
+
+        // 1) find leaf by traversing internal keys
+        BPlusNode* node = root;
+        while (!node->isLeaf) {
+            size_t idx = 0;
+            // find first key > h, so child index is idx
+            while (idx < node->keys.size() && node->keys[idx] <= h) ++idx;
+            if (node->children.empty()) {
+                // defensive: should not happen
+                return false;
+            }
+            if (idx >= node->children.size()) idx = node->children.size() - 1;
+            node = node->children[idx];
+        }
+
+        // 2) insert entry into leaf in order (preserve order by h)
+        auto it = std::lower_bound(node->entries.begin(), node->entries.end(), h,
+            [](const BPlusNode::Entry& a, uint64_t val) { return a.h < val; });
+        node->entries.insert(it, ent);
+
+        // update leaf h range (safe because entries not empty)
+        if (!node->entries.empty()) {
+            node->h_min = node->entries.front().h;
+            node->h_max = node->entries.back().h;
+        }
+
+        // 3) split while node overflows; use this->maxEntries as capacity
+        size_t cap = this->maxEntries;
+        while (true) {
+            if (node->isLeaf) {
+                if (node->entries.size() <= cap) break;
+            }
+            else {
+                // internal overflow: keys.size() > cap OR children.size() > cap+1
+                if (node->keys.size() <= cap && node->children.size() <= cap + 1) break;
+            }
+
+            if (node->isLeaf) {
+                // split leaf
+                BPlusNode* sibling = BPlusNode::createLeaf();
+                sibling->parent = node->parent;
+
+                size_t total = node->entries.size();
+                size_t mid = total / 2; // move [mid, end) -> sibling
+                // move entries
+                sibling->entries.assign(node->entries.begin() + mid, node->entries.end());
+                node->entries.erase(node->entries.begin() + mid, node->entries.end());
+
+                // fix sibling links
+                sibling->next = node->next;
+                node->next = sibling;
+
+                // update ranges (ensure non-empty)
+                assert(!node->entries.empty());
+                assert(!sibling->entries.empty());
+                node->h_min = node->entries.front().h;
+                node->h_max = node->entries.back().h;
+                sibling->h_min = sibling->entries.front().h;
+                sibling->h_max = sibling->entries.back().h;
+
+                uint64_t promoteKey = sibling->entries.front().h;
+
+                if (!node->parent) {
+                    // make new root (internal)
+                    BPlusNode* newRoot = BPlusNode::createInternal();
+                    newRoot->children.clear();
+                    newRoot->keys.clear();
+                    newRoot->children.push_back(node);
+                    newRoot->children.push_back(sibling);
+                    newRoot->keys.push_back(promoteKey);
+                    node->parent = newRoot;
+                    sibling->parent = newRoot;
+                    root = newRoot;
+                    root->parent = nullptr;
+                    return true;
+                }
+                else {
+                    // insert sibling into parent
+                    BPlusNode* p = node->parent;
+                    // find position of node in parent's children
+                    size_t pos = 0;
+                    while (pos < p->children.size() && p->children[pos] != node) ++pos;
+                    // node must be found in parent's children
+                    assert(pos < p->children.size());
+
+                    p->children.insert(p->children.begin() + pos + 1, sibling);
+                    p->keys.insert(p->keys.begin() + pos, promoteKey);
+                    sibling->parent = p;
+
+                    // continue upward check on parent
+                    node = p;
+                    continue;
+                }
+            }
+            else {
+                // split internal node
+                BPlusNode* sibling = BPlusNode::createInternal();
+                sibling->parent = node->parent;
+
+                // children.size() == keys.size() + 1 expected
+                size_t totalChildren = node->children.size();
+                assert(totalChildren >= 2);
+                size_t midChild = totalChildren / 2; // move children [midChild, end) to sibling
+                size_t promoteKeyIndex = midChild - 1; // index of key to promote; valid because totalChildren>=2
+
+                // capture promote key before erasing
+                assert(promoteKeyIndex < node->keys.size());
+                uint64_t promoteKey = node->keys[promoteKeyIndex];
+
+                // move children
+                sibling->children.assign(node->children.begin() + midChild, node->children.end());
+                node->children.erase(node->children.begin() + midChild, node->children.end());
+
+                // move keys: keys after promoteKeyIndex move to sibling
+                sibling->keys.assign(node->keys.begin() + promoteKeyIndex + 1, node->keys.end());
+                // erase promoteKey and keys to its right from node (left keeps keys [0 .. promoteKeyIndex-1])
+                node->keys.erase(node->keys.begin() + promoteKeyIndex, node->keys.end());
+
+                // attach parent pointers for moved children
+                for (BPlusNode* c : sibling->children) {
+                    if (c) c->parent = sibling;
+                }
+
+                // update approximate ranges from child extremes (guard non-empty)
+                if (!node->children.empty() && node->children.front() && node->children.back()) {
+                    node->h_min = node->children.front()->h_min;
+                    node->h_max = node->children.back()->h_max;
+                }
+                else {
+                    node->h_min = node->h_max = 0;
+                }
+                if (!sibling->children.empty() && sibling->children.front() && sibling->children.back()) {
+                    sibling->h_min = sibling->children.front()->h_min;
+                    sibling->h_max = sibling->children.back()->h_max;
+                }
+                else {
+                    sibling->h_min = sibling->h_max = 0;
+                }
+
+                if (!node->parent) {
+                    // new root
+                    BPlusNode* newRoot = BPlusNode::createInternal();
+                    newRoot->children.clear();
+                    newRoot->keys.clear();
+                    newRoot->children.push_back(node);
+                    newRoot->children.push_back(sibling);
+                    newRoot->keys.push_back(promoteKey);
+                    node->parent = newRoot;
+                    sibling->parent = newRoot;
+                    root = newRoot;
+                    root->parent = nullptr;
+                    return true;
+                }
+                else {
+                    BPlusNode* p = node->parent;
+                    // find position of node in parent->children
+                    size_t pos = 0;
+                    while (pos < p->children.size() && p->children[pos] != node) ++pos;
+                    assert(pos < p->children.size());
+
+                    p->children.insert(p->children.begin() + pos + 1, sibling);
+                    p->keys.insert(p->keys.begin() + pos, promoteKey);
+                    sibling->parent = p;
+
+                    node = p;
+                    continue;
+                }
+            }
+        } // end while overflow
+
+        return true;
+    }
+
+    /*bool BPlusTree::constructTree(const std::vector<Feature>& features) {
+        if (features.empty()) return false;
+
+        // compute global bbox
+        bbox = features[0].getEnvelope();
+        for (size_t i = 1; i < features.size(); ++i) {
+            bbox = bbox.unionEnvelope(features[i].getEnvelope());
+        }
+
+        // prepare Hilbert helper (uses your Hilbert class)
+        Hilbert hil(this->getHilbertOrder());
+        hil.setBBox(bbox);
+        const uint64_t G = hil.gridSize(); // = 1 << ORDER
+        const double gridWidth = bbox.getWidth() / static_cast<double>(G);
+        const double gridHeight = bbox.getHeight() / static_cast<double>(G);
+        const double originX = bbox.getMinX();
+        const double originY = bbox.getMinY();
+
+        for (size_t fid = 0; fid < features.size(); ++fid) {
+            const Feature& feat = features[fid];
+            Envelope env = feat.getEnvelope();
+
+            // compute grid index bounds covered by this feature, clipped to [0, G-1]
+            auto clampIdx = [&](int64_t v)->size_t {
+                if (v < 0) return 0u;
+                if (v >= static_cast<int64_t>(G)) return static_cast<size_t>(G - 1);
+                return static_cast<size_t>(v);
+                };
+
+            int64_t ix0 = static_cast<int64_t>(std::floor((env.getMinX() - originX) / gridWidth));
+            int64_t iy0 = static_cast<int64_t>(std::floor((env.getMinY() - originY) / gridHeight));
+            int64_t ix1 = static_cast<int64_t>(std::ceil((env.getMaxX() - originX) / gridWidth)) - 1;
+            int64_t iy1 = static_cast<int64_t>(std::ceil((env.getMaxY() - originY) / gridHeight)) - 1;
+
+            size_t sx = clampIdx(ix0);
+            size_t sy = clampIdx(iy0);
+            size_t ex = clampIdx(ix1);
+            size_t ey = clampIdx(iy1);
+
+            for (size_t gx = sx; gx <= ex; ++gx) {
+                double cellMinX = originX + static_cast<double>(gx) * gridWidth;
+                double cellMaxX = cellMinX + gridWidth;
+                for (size_t gy = sy; gy <= ey; ++gy) {
+                    double cellMinY = originY + static_cast<double>(gy) * gridHeight;
+                    double cellMaxY = cellMinY + gridHeight;
+
+                    Envelope gridBox(cellMinX, cellMaxX, cellMinY, cellMaxY);
+                    if (!env.intersect(gridBox)) continue;
+
+                    // compute Hilbert index using your Hilbert class
+                    uint32_t xi = static_cast<uint32_t>(gx);
+                    uint32_t yi = static_cast<uint32_t>(gy);
+                    uint64_t h = hil.xyToHilbertIndex(xi, yi);
+
+                    // insert using your available API
+                    insertByHilbert(h, static_cast<uint32_t>(fid), static_cast<int>(gx), static_cast<int>(gy));
+                }
+            }
+        }
+
+        // finalize
+        if (root) root->parent = nullptr;
+        srcFeatures = &features;
+        return true;
+    }*/
+
+    /*// main: bulk-load constructTree (single-h per feature using envelope center)
     bool hw6::BPlusTree::constructTree(const std::vector<Feature>& features) {
         if (features.empty()) return false;
         this->srcFeatures = &features;
@@ -397,19 +699,6 @@ namespace hw6 {
         if (root) root->parent = nullptr;
         return true;
     }*/
-    // B+ 树按分隔键向下搜索叶节点
-    BPlusNode* BPlusTree::findLeafByHilbert(uint64_t h) const {
-        if (!root) return nullptr;
-
-        BPlusNode* cur = root;
-        while (cur && !cur->isLeaf) {
-            // 二分查找
-            size_t idx = std::upper_bound(cur->keys.begin(), cur->keys.end(), h) - cur->keys.begin();
-            if (idx >= cur->children.size()) idx = cur->children.size() - 1;
-            cur = cur->children[idx];
-        }
-        return cur;
-    }
 
     /*void BPlusTree::rangeQuery(const Envelope& rect, std::vector<Feature>& result) {
         result.clear();
@@ -450,11 +739,8 @@ namespace hw6 {
             }
         }
     }*/
-#include <unordered_set>
-#include <vector>
-#include <algorithm>
-#include <cmath> 
-    void hw6::BPlusTree::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
+
+    /*void hw6::BPlusTree::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
         features.clear();
         if (!root) return;
 
@@ -632,4 +918,4 @@ namespace hw6 {
 
         walk(root);
     }*/
-} // namespace hw6
+/*}*/

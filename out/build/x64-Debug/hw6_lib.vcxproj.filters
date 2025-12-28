@@ -25,12 +25,18 @@
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\BPlusTreeTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\btree.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\BPlusTree.h">
+    <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\Hilbert.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\Hilbert.h">
+    <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\btree.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\BPlusTree.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -8,22 +8,11 @@
 
 namespace hw6 {
 
-    /**
-     * Hilbert helper utilities.
-     *
-     * Usage:
-     *   Hilbert h(order, global_bbox);
-     *   uint64_t code = h.xyToHilbertIndex(xi, yi); // xi, yi in [0, 2^order - 1]
-     *   uint64_t code2 = h.pointToHilbert(x, y);   // x,y in world coords; normalized to bbox grid
-     */
     class Hilbert {
     private:
         int order_;               // bits per dimension
         uint64_t n_;              // grid size = 1 << order_
-        Envelope bbox_;           // world bounding box for normalization
-
-        // internal helper: convert (xi, yi) -> d using standard Hilbert algorithm
-        // expects xi, yi in [0, n_-1], order_ bits each, returns d in [0, 2^(2*order)-1]
+        Envelope bbox_;         
         uint64_t xy2d(uint32_t xi, uint32_t yi) const;
         // helper for bit manip operations (rotate/flip)
         static void rot(uint32_t n, uint32_t& x, uint32_t& y, uint32_t rx, uint32_t ry);

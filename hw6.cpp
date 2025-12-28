@@ -23,7 +23,7 @@
 #include "RTree.h"
 using TreeTy = hw6::RTree;
 #elif defined(USE_BPLUSTREE)
-#include "BPlusTree.h"
+#include "btree.h"
 using TreeTy = hw6::BPlusTree;
 #else
 #include "QuadTree.h"
