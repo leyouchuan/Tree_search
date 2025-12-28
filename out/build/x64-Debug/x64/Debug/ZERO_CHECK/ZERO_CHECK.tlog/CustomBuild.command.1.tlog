@@ -1,0 +1,10 @@
+^G:\SQLWORK\HW6\HW6-OPTION B\OUT\BUILD\X64-DEBUG\CMAKEFILES\93F37C9FD0F487784D04BD1A83E386F2\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" "-SG:/SQLwork/hw6/hw6-Option B" "-BG:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/hw6 project.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

@@ -1,0 +1,10 @@
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/CMakeFiles/hw6_lib.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/CMakeFiles/hw6_app.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/CMakeFiles/INSTALL.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/CMakeFiles/ALL_BUILD.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/CMakeFiles/ZERO_CHECK.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/3rd/freeglut/CMakeFiles/freeglut_static.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/3rd/freeglut/CMakeFiles/INSTALL.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/3rd/freeglut/CMakeFiles/ALL_BUILD.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/3rd/shapelib/CMakeFiles/shape_lib.dir
+G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug/3rd/shapelib/CMakeFiles/INSTALL.dir

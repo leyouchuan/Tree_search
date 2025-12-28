@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ALL_BUILD", "ALL_BUILD.vcxproj", "{F41E8DEF-85E5-3B76-ADA7-D8D344A1465B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9DAA6144-438C-3117-849F-08571C22A2A7} = {9DAA6144-438C-3117-849F-08571C22A2A7}
+		{96C76E45-B4E2-3E2C-8501-CFED73720D20} = {96C76E45-B4E2-3E2C-8501-CFED73720D20}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "INSTALL", "INSTALL.vcxproj", "{372C32E8-A302-3B32-BE02-D3EA72F44C37}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F41E8DEF-85E5-3B76-ADA7-D8D344A1465B} = {F41E8DEF-85E5-3B76-ADA7-D8D344A1465B}
+		{9DAA6144-438C-3117-849F-08571C22A2A7} = {9DAA6144-438C-3117-849F-08571C22A2A7}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ZERO_CHECK", "..\..\\ZERO_CHECK.vcxproj", "{9DAA6144-438C-3117-849F-08571C22A2A7}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "freeglut_static", "freeglut_static.vcxproj", "{96C76E45-B4E2-3E2C-8501-CFED73720D20}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9DAA6144-438C-3117-849F-08571C22A2A7} = {9DAA6144-438C-3117-849F-08571C22A2A7}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F41E8DEF-85E5-3B76-ADA7-D8D344A1465B}.Debug|x64.ActiveCfg = Debug|x64
+		{F41E8DEF-85E5-3B76-ADA7-D8D344A1465B}.Debug|x64.Build.0 = Debug|x64
+		{372C32E8-A302-3B32-BE02-D3EA72F44C37}.Debug|x64.ActiveCfg = Debug|x64
+		{9DAA6144-438C-3117-849F-08571C22A2A7}.Debug|x64.ActiveCfg = Debug|x64
+		{9DAA6144-438C-3117-849F-08571C22A2A7}.Debug|x64.Build.0 = Debug|x64
+		{96C76E45-B4E2-3E2C-8501-CFED73720D20}.Debug|x64.ActiveCfg = Debug|x64
+		{96C76E45-B4E2-3E2C-8501-CFED73720D20}.Debug|x64.Build.0 = Debug|x64
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5D6F5DA8-86C2-3F36-9128-6D89D11D0BE8}
+	EndGlobalSection
+	GlobalSection(ExtensibilityAddIns) = postSolution
+	EndGlobalSection
+EndGlobal

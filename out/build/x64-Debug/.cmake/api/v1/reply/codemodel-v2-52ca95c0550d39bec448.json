@@ -1,0 +1,165 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-d0094a50bb2071803777.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						2,
+						4,
+						5
+					]
+				},
+				{
+					"build" : "3rd/freeglut",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-3rd.freeglut-Debug-8e5d863fb1935c347223.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.0.0"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "3rd/freeglut",
+					"targetIndexes" : 
+					[
+						1,
+						3
+					]
+				},
+				{
+					"build" : "3rd/shapelib",
+					"jsonFile" : "directory-3rd.shapelib-Debug-c8ea09144fba1dad92d5.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "3rd/shapelib",
+					"targetIndexes" : 
+					[
+						6
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1
+					],
+					"directoryIndexes" : 
+					[
+						0,
+						2
+					],
+					"name" : "hw6 project",
+					"targetIndexes" : 
+					[
+						0,
+						2,
+						4,
+						5,
+						6
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "freeglut",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1,
+						3
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ALL_BUILD-Debug-5f61388093a05eb33d3e.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "ALL_BUILD::@692421d71f306a907f89",
+					"jsonFile" : "target-ALL_BUILD-Debug-9818aa6ef8939664be3b.json",
+					"name" : "ALL_BUILD",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ZERO_CHECK-Debug-27ef4e8e6721671a1887.json",
+					"name" : "ZERO_CHECK",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "freeglut_static::@692421d71f306a907f89",
+					"jsonFile" : "target-freeglut_static-Debug-e975864c2462b6c0d558.json",
+					"name" : "freeglut_static",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "hw6_app::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-hw6_app-Debug-d727dfe952e9153f8cca.json",
+					"name" : "hw6_app",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "hw6_lib::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-hw6_lib-Debug-96bce240ec872aa53eb4.json",
+					"name" : "hw6_lib",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "shape_lib::@23a71218d581bd3088b0",
+					"jsonFile" : "target-shape_lib-Debug-2562613a8f9eb8367eaf.json",
+					"name" : "shape_lib",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "G:/SQLwork/hw6/hw6-Option B/out/build/x64-Debug",
+		"source" : "G:/SQLwork/hw6/hw6-Option B"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}
