@@ -818,7 +818,7 @@ namespace hw6 {
                     init = true;
                 }
                 else {
-                    env = env.unionEnvelope(e);  // 修复：赋值回env
+                    env = env.unionEnvelope(e); 
                 }
             }
         }
@@ -833,14 +833,13 @@ namespace hw6 {
                     init = true;
                 }
                 else {
-                    env = env.unionEnvelope(e);  // 修复：赋值回env
+                    env = env.unionEnvelope(e);
                 }
             }
         }
         return env;
     }
 
-    // Envelope 最小距离（平方）
     static inline double envelopeMinDistSquared(const Envelope& a, const Envelope& b) {
         double dx = 0.0;
         if (a.getMaxX() < b.getMinX()) dx = b.getMinX() - a.getMaxX();
@@ -851,7 +850,6 @@ namespace hw6 {
         return dx * dx + dy * dy;
     }
 
-    // 基本几何距离辅助（点/线段/LineString）——与之前 RTree 版本兼容
     static double pointToPointDist2(double x1, double y1, double x2, double y2) {
         double dx = x1 - x2, dy = y1 - y2; return dx * dx + dy * dy;
     }
@@ -921,7 +919,7 @@ namespace hw6 {
         return std::numeric_limits<double>::infinity();
     }
 
-    // BPlusTree::featureDistanceWithin（头文件声明的静态方法）实现
+
     bool BPlusTree::featureDistanceWithin(const Feature& a, const Feature& b, double D2, bool inclusive) {
         const Geometry* ga = a.getGeom();
         const Geometry* gb = b.getGeom();
@@ -929,7 +927,7 @@ namespace hw6 {
         return inclusive ? (d2 <= D2) : (d2 < D2);
     }
 
-    // joinByDistance：对两个要素集合进行逐对精确匹配（头文件中声明）
+
     void BPlusTree::joinByDistance(const std::vector<Feature>& setA,
         const std::vector<Feature>& setB,
         double D2,
@@ -952,7 +950,7 @@ namespace hw6 {
             }
         }
     }
-    // 递归匹配实现：treeMatchNodesByDist（签名与 btree.h 一致）
+
     void BPlusTree::treeMatchNodesByDist(BPlusNode* a, BPlusNode* b, double D2,
         std::vector<std::pair<Feature, Feature>>* out,
         BPlusTree::MatchCallback cb, void* userData, bool inclusive)
@@ -1019,7 +1017,7 @@ namespace hw6 {
         }
     }
 
-    // 对外接口：vector 返回版本（头文件已声明）
+
     std::vector<std::pair<Feature, Feature>> BPlusTree::spatialJoinWithin(BPlusTree& other, double D, bool inclusive) {
         std::vector<std::pair<Feature, Feature>> out;
         if (!this->root_ || !other.root_) return out;
@@ -1028,7 +1026,6 @@ namespace hw6 {
         return out;
     }
 
-    // 对外接口：回调版本（头文件已声明）
     void BPlusTree::spatialJoinWithin(BPlusTree& other, double D, MatchCallback cb, void* userData, bool inclusive) {
         if (!this->root_ || !other.root_) return;
         double D2 = D * D;
@@ -1056,7 +1053,7 @@ namespace hw6 {
         }
     }
 
-    // BPlusTree::draw — 覆盖自 Tree，调用 root_
+
     void BPlusTree::draw() {
         if (root_ != nullptr) {
             root_->draw();
