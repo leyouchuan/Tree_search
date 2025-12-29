@@ -102,11 +102,13 @@ namespace hw6 {
     BPlusNode* BPlusNode::findChild(uint64_t key) const {
         if (isLeaf_ || children_.empty()) return nullptr;
 
-        int idx = findKeyIndex(key);
-        // 如果key >= keys_[idx]，应该去idx+1的子节点
-        // 但lower_bound返回的是第一个>=key的位置
-        // 在B+树中，keys_[i]是children_[i+1]的最小值
-        return children_[idx];
+        // 找第一个 key <= keys[i] 的位置
+        size_t i = 0;
+        while (i < keys_.size() && key > keys_[i]) {
+            i++;
+        }
+
+        return children_[i];
     }
     //统计以当前节点为根的子树中内部节点和叶节点的数量
     void BPlusNode::countNodes(int& interiorNum, int& leafNum) const {
@@ -171,6 +173,7 @@ namespace hw6 {
             }
         }
     }
+
     // ============================================================================
     // BPlusTree 实现
     // ============================================================================
@@ -239,7 +242,7 @@ namespace hw6 {
         std::sort(sorted.begin(), sorted.end(),
             [](const auto& a, const auto& b) { return a.first < b.first; });
 
-        // Bulk-loading: 批量构建叶节点
+        // 批量构建叶节点
         std::vector<BPlusNode*> leafNodes;
         BPlusNode* currentLeaf = nullptr;
 
@@ -248,7 +251,7 @@ namespace hw6 {
                 currentLeaf = new BPlusNode(true, order_);
                 leafNodes.push_back(currentLeaf);
 
-                // 维护叶节点链表
+                // 叶节点链表
                 if (leafNodes.size() > 1) {
                     BPlusNode* prevLeaf = leafNodes[leafNodes.size() - 2];
                     prevLeaf->setNext(currentLeaf);
@@ -265,7 +268,7 @@ namespace hw6 {
         // 自底向上构建索引层
         std::vector<BPlusNode*> currentLevel = leafNodes;
 
-        while (currentLevel.size() > 1) {
+        /*while (currentLevel.size() > 1) {
             std::vector<BPlusNode*> nextLevel;
             BPlusNode* parent = nullptr;
 
@@ -287,8 +290,35 @@ namespace hw6 {
             }
 
             currentLevel = nextLevel;
-        }
+        }*/
+        while (currentLevel.size() > 1) {
+            std::vector<BPlusNode*> nextLevel;
+            BPlusNode* parent = nullptr;
 
+            for (size_t i = 0; i < currentLevel.size(); ++i) {
+                if (!parent || static_cast<int>(parent->children_.size()) > order_) {
+                    // 创建新的父节点
+                    parent = new BPlusNode(false, order_);
+                    nextLevel.push_back(parent);
+                }
+
+                // 添加子节点
+                if (parent->children_.empty()) {
+                    // 第一个子节点，不需要前置分隔键
+                    parent->children_.push_back(currentLevel[i]);
+                }
+                else {
+                    // 后续子节点，需要添加分隔键
+                    uint64_t key = currentLevel[i]->getKey(0);
+                    parent->keys_.push_back(key);
+                    parent->children_.push_back(currentLevel[i]);
+                }
+
+                currentLevel[i]->setParent(parent);
+            }
+
+            currentLevel = nextLevel;
+        }
         root_ = currentLevel[0];
         return true;
     }
@@ -387,8 +417,7 @@ namespace hw6 {
     // 通过 computeHilbertRange(rect, ranges) 计算与矩形可能对应的 Hilbert 值区间。
     // 对每个 Hilbert 区间调用 rangeQueryByHilbert(hMin, hMax, rect, features) 
     // 执行实际查询并把满足几何相交的 Feature 收集到结果集。
-    // 辅助：按 hilbert 值定位叶（直接复用已实现的 findLeaf）
-
+    // 注：是按 hilbert 值定位叶
     /*void BPlusTree::computeHilbertRange(const Envelope& rect,
         std::vector<std::pair<uint64_t, uint64_t>>& ranges) const {
         ranges.clear();
@@ -516,9 +545,6 @@ namespace hw6 {
         }
     }
 
-
-    // ---------- 递归分解网格并收集 Hilbert 区间（cell-based interval decomposition）
-    // 将结果区间 push 到 rawIntervals（不合并）。
     void BPlusTree::computeHilbertRange(const Envelope& rect,
         std::vector<std::pair<uint64_t, uint64_t>>& rawIntervals) const
     {
@@ -591,7 +617,6 @@ namespace hw6 {
         rawIntervals.swap(merged);
     }
 
-    // ---------- rangeQuery 主入口，使用 computeHilbertRange + 对每个合并区间调用流式 rangeQueryByHilbert
     void BPlusTree::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
         features.clear();
         if (!root_) return;
@@ -600,15 +625,19 @@ namespace hw6 {
         computeHilbertRange(rect, intervals);
         if (intervals.empty()) return;
 
-        // 全局去重（基于 Hilbert key）
         std::unordered_set<uint64_t> seenKeys;
+        std::vector<Feature> candidates; // 收集候选（去重）
 
         for (const auto& pr : intervals) {
             uint64_t hMin = pr.first;
             uint64_t hMax = pr.second;
 
-            // 使用已有的流式区间扫描：从包含或紧随 hMin 的叶开始，顺序扫描直到 >hMax
             BPlusNode* startLeaf = findLeafContainingOrAfter(hMin);
+            if (startLeaf && !startLeaf->getKeys().empty() &&
+                startLeaf->getKeys().front() > hMin && startLeaf->getPrev()) {
+                startLeaf = startLeaf->getPrev();
+            }
+            if (!startLeaf) startLeaf = leftmost_;
             if (!startLeaf) continue;
 
             BPlusNode* current = startLeaf;
@@ -620,20 +649,23 @@ namespace hw6 {
                 size_t lo = 0, hi = keys.size();
                 while (lo < hi) {
                     size_t m = (lo + hi) / 2;
-                    if (keys[m] < hMin) lo = m + 1; else hi = m;
+                    if (keys[m] < hMin) lo = m + 1;
+                    else hi = m;
                 }
 
                 for (size_t i = lo; i < keys.size(); ++i) {
                     uint64_t key = keys[i];
                     if (key > hMax) {
-                        // 完成此区间
                         goto next_interval;
                     }
                     if (seenKeys.find(key) != seenKeys.end()) continue;
-                    if (feats[i].getEnvelope().intersect(rect)) {
-                        features.push_back(feats[i]);
-                        seenKeys.insert(key);
-                    }
+
+                    // 先用包围盒快速排除（和你现在一样）
+                    if (!feats[i].getEnvelope().intersect(rect)) continue;
+
+                    // 记录候选并去重
+                    candidates.push_back(feats[i]);
+                    seenKeys.insert(key);
                 }
 
                 current = current->getNext();
@@ -641,34 +673,50 @@ namespace hw6 {
         next_interval:
             continue;
         }
+
+        for (const auto& f : candidates) {
+            // 优先使用要素的精确几何相交方法（如果有）
+            // 假设 Feature 有方法 intersects(const Geometry&/const Envelope&)
+            bool preciseIntersect = false;
+
+            // 示例：如果 Feature 提供几何对象和 intersects(Envelope) 方法
+            // preciseIntersect = f.getGeometry().intersects(rect); // 如果有几何与矩形相交函数
+
+            // 回退：如果没有精确几何相交函数，则用 Envelope（已在候选阶段用过，仍可作为保底）
+            if (!preciseIntersect) {
+                if (f.getEnvelope().intersect(rect)) preciseIntersect = true;
+            }
+
+            if (preciseIntersect) {
+                features.push_back(f);
+            }
+        }
     }
 
-    //从根节点向下查找第一个可能包含 >= hValue 的叶节点
     BPlusNode* BPlusTree::findLeafContainingOrAfter(uint64_t hValue) const {
         if (!root_) return nullptr;
 
         BPlusNode* current = root_;
 
-        // 向下遍历到叶节点
         while (!current->isLeaf()) {
             const auto& keys = current->getKeys();
             const auto& children = current->children_;
 
-            // 找到第一个 key > hValue 的位置
+            // 修改：找第一个 hValue <= keys[i] 的位置
+            // 等价于：找第一个不满足 hValue > keys[i] 的位置
             size_t i = 0;
-            while (i < keys.size() && keys[i] <= hValue) {
+            while (i < keys.size() && hValue > keys[i]) {  // 修改这里
                 i++;
             }
 
-            // 如果所有key都 <= hValue，去最右边的子节点
-            // 否则去 keys[i] > hValue 对应的左子节点
             current = children[i];
-
             if (!current) return nullptr;
         }
 
         return current;
     }
+
+
     // ============================================================================
     // 最邻近查询实现
     // ============================================================================
@@ -784,16 +832,11 @@ namespace hw6 {
         BPlusNode* startLeaf = findLeafByHilbert(qh);
         if (!startLeaf) return false;
 
-        // helper to compute minimal possible distance from query point to any feature in a leaf
-        // We'll approximate leaf's spatial cell by computing bounding envelope of keys in leaf.
-        // Better: maintain per-leaf cell bbox; here we compute cell via min/max grid coords of keys.
         auto leafMinMaxCellEnvelope = [&](BPlusNode* leaf)->Envelope {
             const auto& ks = leaf->getKeys();
             if (ks.empty()) return Envelope(0, 0, 0, 0);
             uint64_t hmin = ks.front();
             uint64_t hmax = ks.back();
-            // naive: try to recover grid coords from corners — we use hilbert_.dToXY not provided.
-            // As conservative fallback, return the whole bbox (safe but less pruning).
             return hilbert_.getBBox();
             };
 
@@ -801,9 +844,13 @@ namespace hw6 {
             return pointToEnvelopeDist(x, y, env);
             };
 
-        // priority queue items: pair<lower_bound_dist, BPlusNode*>
         using PQItem = std::pair<double, BPlusNode*>;
-        struct Cmp { bool operator()(const PQItem& a, const PQItem& b) const { return a.first > b.first; } };
+        struct Cmp {
+            bool operator()(const PQItem& a, const PQItem& b) const 
+        { 
+            return a.first > b.first;
+        } 
+        };
         std::priority_queue<PQItem, std::vector<PQItem>, Cmp> pq;
 
         // visited set to avoid re-pushing same leaf
@@ -828,9 +875,8 @@ namespace hw6 {
             auto top = pq.top(); pq.pop();
             double lb = top.first;
             BPlusNode* leaf = top.second;
-            if (lb > bestDist) break; // safe stop: no leaf can contain closer feature
+            if (lb > bestDist) break; 
 
-            // scan all features in leaf
             for (size_t i = 0; i < leaf->getFeatureCount(); ++i) {
                 const Feature& f = leaf->getFeature(i);
                 double d = f.distance(x, y);
@@ -844,14 +890,13 @@ namespace hw6 {
                 }
             }
 
-            // push neighbor leaves for further exploration
             if (leaf->getPrev()) pushLeaf(leaf->getPrev());
             if (leaf->getNext()) pushLeaf(leaf->getNext());
         }
 
-        // final exact selection
+
         if (cand.empty()) return false;
-        // compute final minimal distance and filter
+
         double minD = std::numeric_limits<double>::infinity();
         for (const auto& f : cand) {
             double d = f.distance(x, y);

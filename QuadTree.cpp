@@ -35,8 +35,6 @@ namespace hw6 {
 				children[i]->split(capacity);
 	}
 
-
-
 	void QuadNode::countNode(int& interiorNum, int& leafNum) {
 		if (isLeafNode()) {
 			++leafNum;

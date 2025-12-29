@@ -16,6 +16,9 @@
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\btree.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\RTreeTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\Hilbert.h">

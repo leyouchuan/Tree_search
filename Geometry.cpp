@@ -135,15 +135,176 @@ namespace hw6 {
 		}
 		envelope = Envelope(minX, maxX, minY, maxY);
 	}
-
-	double LineString::distance(const LineString* line) const {
-		// TODO
-		return NOT_IMPLEMENT;
+	static double pointToSegmentDist2(double px, double py,
+		double x1, double y1, double x2, double y2) {
+		double vx = x2 - x1;
+		double vy = y2 - y1;
+		double wx = px - x1;
+		double wy = py - y1;
+		double c1 = vx * wx + vy * wy;
+		if (c1 <= 0.0) {
+			double dx = px - x1, dy = py - y1;
+			return dx * dx + dy * dy;
+		}
+		double c2 = vx * vx + vy * vy;
+		if (c2 <= c1) {
+			double dx = px - x2, dy = py - y2;
+			return dx * dx + dy * dy;
+		}
+		double t = c1 / c2;
+		double projx = x1 + t * vx;
+		double projy = y1 + t * vy;
+		double dx = px - projx, dy = py - projy;
+		return dx * dx + dy * dy;
 	}
 
+	static double orient(double ax, double ay, double bx, double by, double cx, double cy) {
+		return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+	}
+	static bool onSegment(double ax, double ay, double bx, double by, double px, double py) {
+		return std::min(ax, bx) <= px + 1e-12 && px <= std::max(ax, bx) + 1e-12 &&
+			std::min(ay, by) <= py + 1e-12 && py <= std::max(ay, by) + 1e-12;
+	}
+	static bool segmentsIntersect(double a1x, double a1y, double a2x, double a2y,
+		double b1x, double b1y, double b2x, double b2y) {
+		double o1 = orient(a1x, a1y, a2x, a2y, b1x, b1y);
+		double o2 = orient(a1x, a1y, a2x, a2y, b2x, b2y);
+		double o3 = orient(b1x, b1y, b2x, b2y, a1x, a1y);
+		double o4 = orient(b1x, b1y, b2x, b2y, a2x, a2y);
+
+		if (fabs(o1) < 1e-12 && onSegment(a1x, a1y, a2x, a2y, b1x, b1y)) return true;
+		if (fabs(o2) < 1e-12 && onSegment(a1x, a1y, a2x, a2y, b2x, b2y)) return true;
+		if (fabs(o3) < 1e-12 && onSegment(b1x, b1y, b2x, b2y, a1x, a1y)) return true;
+		if (fabs(o4) < 1e-12 && onSegment(b1x, b1y, b2x, b2y, a2x, a2y)) return true;
+
+		return (o1 * o2 < 0.0) && (o3 * o4 < 0.0);
+	}
+
+	// 线段到线段平方距离（端点到对方线段最小值）
+	static double segmentToSegmentDist2(double ax1, double ay1, double ax2, double ay2,
+		double bx1, double by1, double bx2, double by2) {
+		if (segmentsIntersect(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2)) return 0.0;
+		double d1 = pointToSegmentDist2(ax1, ay1, bx1, by1, bx2, by2);
+		double d2 = pointToSegmentDist2(ax2, ay2, bx1, by1, bx2, by2);
+		double d3 = pointToSegmentDist2(bx1, by1, ax1, ay1, ax2, ay2);
+		double d4 = pointToSegmentDist2(bx2, by2, ax1, ay1, ax2, ay2);
+		return std::min(std::min(d1, d2), std::min(d3, d4));
+	}
+
+	// --- LineString::distance(LineString) ---
+	double LineString::distance(const LineString* line) const {
+		if (!line) return std::numeric_limits<double>::infinity();
+		size_t n1 = this->numPoints();
+		size_t n2 = line->numPoints();
+		if (n1 == 0 || n2 == 0) return std::numeric_limits<double>::infinity();
+		if (n1 == 1 && n2 == 1) {
+			double dx = this->getPointN(0).getX() - line->getPointN(0).getX();
+			double dy = this->getPointN(0).getY() - line->getPointN(0).getY();
+			return std::sqrt(dx * dx + dy * dy);
+		}
+
+		double minDist2 = std::numeric_limits<double>::infinity();
+
+		// 单点到线串
+		if (n1 == 1) {
+			double px = this->getPointN(0).getX();
+			double py = this->getPointN(0).getY();
+			for (size_t j = 0; j + 1 < n2; ++j) {
+				const auto& b1 = line->getPointN(j);
+				const auto& b2 = line->getPointN(j + 1);
+				minDist2 = std::min(minDist2,
+					pointToSegmentDist2(px, py, b1.getX(), b1.getY(), b2.getX(), b2.getY()));
+				if (minDist2 == 0.0) return 0.0;
+			}
+			return std::sqrt(minDist2);
+		}
+		if (n2 == 1) {
+			double px = line->getPointN(0).getX();
+			double py = line->getPointN(0).getY();
+			for (size_t i = 0; i + 1 < n1; ++i) {
+				const auto& a1 = this->getPointN(i);
+				const auto& a2 = this->getPointN(i + 1);
+				minDist2 = std::min(minDist2,
+					pointToSegmentDist2(px, py, a1.getX(), a1.getY(), a2.getX(), a2.getY()));
+				if (minDist2 == 0.0) return 0.0;
+			}
+			return std::sqrt(minDist2);
+		}
+
+		// 一般情况：比较每一对线段（若相交则返回0）
+		for (size_t i = 0; i + 1 < n1; ++i) {
+			const auto& a1 = this->getPointN(i);
+			const auto& a2 = this->getPointN(i + 1);
+			for (size_t j = 0; j + 1 < n2; ++j) {
+				const auto& b1 = line->getPointN(j);
+				const auto& b2 = line->getPointN(j + 1);
+				double d2 = segmentToSegmentDist2(
+					a1.getX(), a1.getY(), a2.getX(), a2.getY(),
+					b1.getX(), b1.getY(), b2.getX(), b2.getY()
+				);
+				if (d2 < minDist2) minDist2 = d2;
+				if (minDist2 == 0.0) return 0.0;
+			}
+		}
+
+		return std::sqrt(minDist2);
+	}
+
+	// --- LineString::distance(Polygon) ---
 	double LineString::distance(const Polygon* polygon) const {
-		// TODO
-		return NOT_IMPLEMENT;
+		if (!polygon) return std::numeric_limits<double>::infinity();
+
+		const LineString& exterior = polygon->getExteriorRing();
+		// 1) 若线与外环相交，则距离为0
+		// 检查任一线段是否与外环某线段相交
+		size_t nL = this->numPoints();
+		size_t nE = exterior.numPoints();
+		if (nL >= 2 && nE >= 2) {
+			for (size_t i = 0; i + 1 < nL; ++i) {
+				const auto& a1 = this->getPointN(i);
+				const auto& a2 = this->getPointN(i + 1);
+				for (size_t j = 0; j + 1 < nE; ++j) {
+					const auto& b1 = exterior.getPointN(j);
+					const auto& b2 = exterior.getPointN(j + 1);
+					if (segmentsIntersect(a1.getX(), a1.getY(), a2.getX(), a2.getY(),
+						b1.getX(), b1.getY(), b2.getX(), b2.getY())) {
+						return 0.0;
+					}
+				}
+			}
+		}
+
+		// 2) 若线的任一点在多边形内部，则距离为0
+		// 假定 Polygon 提供 containsPoint(const Point&) 或 contains(x,y) —— 若没有请忽略此段。
+#ifdef POLYGON_HAS_CONTAINS_POINT
+		for (size_t i = 0; i < nL; ++i) {
+			const auto& p = this->getPointN(i);
+			if (polygon->containsPoint(p)) return 0.0;
+		}
+#endif
+
+		// 3) 否则，计算线串与外环的最小距离（线段对比）
+		double minDist2 = std::numeric_limits<double>::infinity();
+		if (nL >= 2 && nE >= 2) {
+			for (size_t i = 0; i + 1 < nL; ++i) {
+				const auto& a1 = this->getPointN(i);
+				const auto& a2 = this->getPointN(i + 1);
+				for (size_t j = 0; j + 1 < nE; ++j) {
+					const auto& b1 = exterior.getPointN(j);
+					const auto& b2 = exterior.getPointN(j + 1);
+					double d2 = segmentToSegmentDist2(
+						a1.getX(), a1.getY(), a2.getX(), a2.getY(),
+						b1.getX(), b1.getY(), b2.getX(), b2.getY()
+					);
+					if (d2 < minDist2) minDist2 = d2;
+					if (minDist2 == 0.0) return 0.0;
+				}
+			}
+		}
+
+		if (minDist2 == std::numeric_limits<double>::infinity())
+			return std::numeric_limits<double>::infinity();
+		return std::sqrt(minDist2);
 	}
 
 	typedef int OutCode;

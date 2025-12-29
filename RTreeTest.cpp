@@ -239,7 +239,7 @@ namespace hw6 {
 		else if (t == TEST5) {
 			cout << "TEST5: Spatial Join (within distance D)" << endl;
 
-			// ËØªÂèñÁÇπÔºàstationÔºâÂíåÁ∫øÔºàhighwayÔºâ
+			// ∂¡»°µ„£®station£©∫Õœﬂ£®highway£©
 			vector<Geometry*> geom_station = readGeom(PROJ_SRC_DIR "/data/station");
 			vector<Feature> stations;
 			for (size_t i = 0; i < geom_station.size(); ++i) stations.emplace_back("", geom_station[i]);
@@ -248,20 +248,20 @@ namespace hw6 {
 			vector<Feature> highways;
 			for (size_t i = 0; i < geom_highway.size(); ++i) highways.emplace_back("", geom_highway[i]);
 
-			// ÊûÑÂª∫‰∏§Ê£µ RTree
+			// ππΩ®¡Ωø√ RTree
 			RTree rt_st(8), rt_hw(8);
 			rt_st.constructTree(stations);
 			rt_hw.constructTree(highways);
 
-			// ËÆæÁΩÆË∑ùÁ¶ª DÔºà‰æãÂ¶Ç 0.001 Êàñ‰Ω†ÈúÄË¶ÅÁöÑÈòàÂÄºÔºâ
-			double D = 10;
-			// ËøîÂõûÈÖçÂØπÂàóË°®ÔºàÈùûÂõûË∞ÉÁâàÊú¨Ôºâ
+			// …Ë÷√æ‡¿Î D
+			double D = 0.0001;
+			// ∑µªÿ≈‰∂‘¡–±Ì
 			auto pairs = rt_st.spatialJoinWithin(rt_hw, D, true);
 
 			cout << "Found " << pairs.size() << " matching pairs within distance " << D << endl;
 
-			// ÂèØÈÄâÔºöÊâìÂç∞ÂâçËã•Âπ≤ÂåπÈÖç
-			size_t show = std::min<size_t>(pairs.size(), 20);
+			// ø…—°£∫¥Ú”°«∞»Ù∏…∆•≈‰
+			size_t show = std::min<size_t>(pairs.size(), 21);
 			for (size_t i = 0; i < show; ++i) {
 				cout << "Pair " << i << ": ";
 				pairs[i].first.print();
@@ -270,12 +270,12 @@ namespace hw6 {
 				cout << endl;
 			}
 
-			// Ê∏ÖÁêÜÔºàÈáäÊîæ Geometry ÊåáÈíàÔºâ
+			// «Â¿Ì£® Õ∑≈ Geometry ÷∏’Î£©
 			for (auto g : geom_station) delete g;
 			for (auto g : geom_highway) delete g;
 			geom_station.clear();
 			geom_highway.clear();
-			}
+		}
 
 		else if (t == TEST8) {
 			cout << "TEST8: RTreeAnalysis" << endl;
@@ -290,7 +290,7 @@ namespace hw6 {
 			RTree rtree(childNum);
 			rtree.constructTree(features);
 
-			// TODO ‰∏éÂõõÂèâÊ†ëËøõË°åÊØîËæÉ
+			// TODO ”ÎÀƒ≤Ê ˜Ω¯––±»Ωœ
 
 			forConstCapAnalyseRTree(features, childNum + step, maxNum, step);
 		}
@@ -312,9 +312,7 @@ namespace hw6 {
 
 		srand(time(nullptr));
 
-		/*TODO:ÂÆûÁé∞forConstCapAnalyseRTree */
+		/*TODO: µœ÷forConstCapAnalyseRTree */
 		forConstCapAnalyseRTree(features, 70, 200, 10);
 	}
-
-
 } // namespace hw6

@@ -14,11 +14,10 @@
 #include <memory>
 #include <vector>
 
-//#define USE_BPLUSTREE
-//#define USE_RTREE
+
 #ifdef USE_RTREE
 #include "RTree.h"
-//using TreeTy = hw6::RTree;
+using TreeTy = hw6::RTree;
 #elif defined(USE_BPLUSTREE)
 #include "btree.h"
 using TreeTy = hw6::BPlusTree;
@@ -411,7 +410,6 @@ void spatialJoin_BPlusTree(double D) {
 			dynamic_cast<const hw6::LineString*>(g);
 		if (!road) continue;
 
-		// 1. 构造扩展后的 Envelope（MBR + buffer）
 		const hw6::Envelope& e = road->getEnvelope();
 		hw6::Envelope queryEnv(
 			e.getMinX() - D,
@@ -420,11 +418,10 @@ void spatialJoin_BPlusTree(double D) {
 			e.getMaxY() + D
 		);
 
-		// 2. B+Tree rangeQuery（Index Scan）
 		vector<hw6::Feature> candidates;
 		pointTree->rangeQuery(queryEnv, candidates);
 
-		// 3. 精确距离判断（Refine）
+		// 精确距离判断
 		for (const auto& stationFeature : candidates) {
 			const hw6::Point* station =
 				dynamic_cast<const hw6::Point*>(stationFeature.getGeom());
@@ -680,7 +677,7 @@ int main(int argc, char* argv[]) {
 		<< "  2  : Test distance between Point and LineString\n"
 		<< "  3  : Test distance between Point and Polygon\n"
 		<< "  4  : Test tree construction\n"
-		<< "  5  : Test (your option here)\n"
+		<< "  5  : Test Rtree tree matching spatial join\n"
 		<< "  8  : Tree performance analysis\n"
 		<< "  ESC: quit\n"
 		<< endl;

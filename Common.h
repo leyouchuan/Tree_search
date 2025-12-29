@@ -21,7 +21,6 @@
 
 
 //#define USE_RTREE
-//#define USE_BPLUSTREE
-//#define USE_RTREE
+#define USE_BPLUSTREE
 
 #endif

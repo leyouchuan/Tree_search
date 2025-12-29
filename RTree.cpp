@@ -233,7 +233,6 @@ namespace hw6 {
 			root->add(f);
 			return;
 		}
-
 		Envelope env = f.getEnvelope();
 		RNode* leaf = this->pointInLeafNode(env.getMaxX(), env.getMinY());
 		if (!leaf) {
@@ -265,7 +264,8 @@ namespace hw6 {
 			for (int i = 0; i < N; ++i) {
 				for (int j = i + 1; j < N; ++j) {
 					Envelope ui = node->getFeature(i).getEnvelope().unionEnvelope(node->getFeature(j).getEnvelope());
-					double waste = envelopeArea(ui) - envelopeArea(node->getFeature(i).getEnvelope()) - envelopeArea(node->getFeature(j).getEnvelope());
+					double waste = envelopeArea(ui) - envelopeArea(node->getFeature(i).getEnvelope())
+						- envelopeArea(node->getFeature(j).getEnvelope());
 					if (waste > worstWaste) { worstWaste = waste; seed1 = i; seed2 = j; }
 				}
 			}
@@ -468,7 +468,7 @@ namespace hw6 {
 		std::vector<Feature> shuffled = features;
 		std::mt19937_64 rng(std::random_device{}());
 		std::shuffle(shuffled.begin(), shuffled.end(), rng);
-		for (const Feature& f : features)
+		for (const Feature& f : shuffled)
 			insertFeature(f);
 		if (root)
 			root->recalcBBox();
@@ -537,37 +537,6 @@ namespace hw6 {
 		return dx * dx + dy * dy;
 	}
 
-	static double pointToSegmentDist2(double px, double py, double ax, double ay, double bx, double by) {
-		double vx = bx - ax, vy = by - ay;
-		double wx = px - ax, wy = py - ay;
-		double c1 = vx * wx + vy * wy;
-		if (c1 <= 0.0) {
-			double dx = px - ax, dy = py - ay; return dx * dx + dy * dy;
-		}
-		double c2 = vx * vx + vy * vy;
-		if (c2 <= c1) {
-			double dx = px - bx, dy = py - by; return dx * dx + dy * dy;
-		}
-		double t = c1 / c2;
-		double projx = ax + t * vx, projy = ay + t * vy;
-		double dx = px - projx, dy = py - projy;
-		return dx * dx + dy * dy;
-	}
-
-	// 点到折线平方距离（poly: vector<pair<double,double>>）
-	static double pointToPolylineDist2(double px, double py, const std::vector<std::pair<double, double>>& poly) {
-		double best = std::numeric_limits<double>::infinity();
-		if (poly.size() == 1) {
-			double dx = px - poly[0].first, dy = py - poly[0].second;
-			return dx * dx + dy * dy;
-		}
-		for (size_t i = 0; i + 1 < poly.size(); ++i) {
-			double d2 = pointToSegmentDist2(px, py, poly[i].first, poly[i].second, poly[i + 1].first, poly[i + 1].second);
-			if (d2 < best) best = d2;
-		}
-		return best;
-	}
-
 	std::vector<std::pair<Feature, Feature>> RTree::spatialJoinWithin(RTree& other, double D, bool inclusive) {
 		std::vector<std::pair<Feature, Feature>> out;
 		if (!this->root || !other.root) return out;
@@ -583,19 +552,252 @@ namespace hw6 {
 		treeMatchNodesByDist(this->root, other.root, D2, nullptr, cb, userData, inclusive);
 	}
 
-	// 递归实现
+	// ============== 距离计算辅助函数 ==============
+
+// 点到点的平方距离
+	static double pointToPointDist2(double x1, double y1, double x2, double y2) {
+		double dx = x1 - x2;
+		double dy = y1 - y2;
+		return dx * dx + dy * dy;
+	}
+
+	// 点到线段的平方距离（已有，保持不变）
+	static double pointToSegmentDist2(double px, double py,
+		double ax, double ay,
+		double bx, double by) {
+		double vx = bx - ax, vy = by - ay;
+		double wx = px - ax, wy = py - ay;
+		double c1 = vx * wx + vy * wy;
+		if (c1 <= 0.0) {
+			double dx = px - ax, dy = py - ay;
+			return dx * dx + dy * dy;
+		}
+		double c2 = vx * vx + vy * vy;
+		if (c2 <= c1) {
+			double dx = px - bx, dy = py - by;
+			return dx * dx + dy * dy;
+		}
+		double t = c1 / c2;
+		double projx = ax + t * vx, projy = ay + t * vy;
+		double dx = px - projx, dy = py - projy;
+		return dx * dx + dy * dy;
+	}
+
+	// 点到LineString的平方距离
+	static double pointToLineStringDist2(double px, double py, const LineString* line) {
+		if (!line || line->numPoints() == 0) {
+			return std::numeric_limits<double>::infinity();
+		}
+
+		size_t n = line->numPoints();
+
+		// 单点LineString
+		if (n == 1) {
+			const Point& p0 = line->getPointN(0);
+			return pointToPointDist2(px, py, p0.getX(), p0.getY());
+		}
+
+		// 多点LineString：计算到每个线段的最小距离
+		double minDist2 = std::numeric_limits<double>::infinity();
+		for (size_t i = 0; i + 1 < n; ++i) {
+			const Point& p1 = line->getPointN(i);
+			const Point& p2 = line->getPointN(i + 1);
+			double d2 = pointToSegmentDist2(px, py,
+				p1.getX(), p1.getY(),
+				p2.getX(), p2.getY());
+			if (d2 < minDist2) minDist2 = d2;
+		}
+
+		return minDist2;
+	}
+
+	// 线段到线段的平方距离
+	static double segmentToSegmentDist2(double a1x, double a1y, double a2x, double a2y,
+		double b1x, double b1y, double b2x, double b2y) {
+		// 计算四个端点到对方线段的距离，取最小值
+		double d1 = pointToSegmentDist2(a1x, a1y, b1x, b1y, b2x, b2y);
+		double d2 = pointToSegmentDist2(a2x, a2y, b1x, b1y, b2x, b2y);
+		double d3 = pointToSegmentDist2(b1x, b1y, a1x, a1y, a2x, a2y);
+		double d4 = pointToSegmentDist2(b2x, b2y, a1x, a1y, a2x, a2y);
+
+		return std::min({ d1, d2, d3, d4 });
+	}
+
+	// LineString到LineString的平方距离
+	static double lineStringToLineStringDist2(const LineString* lineA, const LineString* lineB) {
+		if (!lineA || !lineB || lineA->numPoints() == 0 || lineB->numPoints() == 0) {
+			return std::numeric_limits<double>::infinity();
+		}
+
+		size_t nA = lineA->numPoints();
+		size_t nB = lineB->numPoints();
+
+		// 如果任一是单点，转为点到线串距离
+		if (nA == 1) {
+			const Point& p = lineA->getPointN(0);
+			return pointToLineStringDist2(p.getX(), p.getY(), lineB);
+		}
+		if (nB == 1) {
+			const Point& p = lineB->getPointN(0);
+			return pointToLineStringDist2(p.getX(), p.getY(), lineA);
+		}
+
+		// 计算所有线段对之间的最小距离
+		double minDist2 = std::numeric_limits<double>::infinity();
+
+		for (size_t i = 0; i + 1 < nA; ++i) {
+			const Point& a1 = lineA->getPointN(i);
+			const Point& a2 = lineA->getPointN(i + 1);
+
+			for (size_t j = 0; j + 1 < nB; ++j) {
+				const Point& b1 = lineB->getPointN(j);
+				const Point& b2 = lineB->getPointN(j + 1);
+
+				double d2 = segmentToSegmentDist2(
+					a1.getX(), a1.getY(), a2.getX(), a2.getY(),
+					b1.getX(), b1.getY(), b2.getX(), b2.getY()
+				);
+
+				if (d2 < minDist2) minDist2 = d2;
+				if (minDist2 == 0.0) return 0.0; // 早期退出优化
+			}
+		}
+
+		return minDist2;
+	}
+
+	// 计算两个几何对象之间的平方距离（不使用Geometry的distance方法）
+	static double computeGeometryDist2(const Geometry* geomA, const Geometry* geomB) {
+		if (!geomA || !geomB) {
+			return std::numeric_limits<double>::infinity();
+		}
+
+		// 尝试转换为具体类型
+		const Point* pA = dynamic_cast<const Point*>(geomA);
+		const Point* pB = dynamic_cast<const Point*>(geomB);
+		const LineString* lA = dynamic_cast<const LineString*>(geomA);
+		const LineString* lB = dynamic_cast<const LineString*>(geomB);
+
+		// Point to Point
+		if (pA && pB) {
+			return pointToPointDist2(pA->getX(), pA->getY(), pB->getX(), pB->getY());
+		}
+
+		// Point to LineString
+		if (pA && lB) {
+			return pointToLineStringDist2(pA->getX(), pA->getY(), lB);
+		}
+
+		// LineString to Point
+		if (lA && pB) {
+			return pointToLineStringDist2(pB->getX(), pB->getY(), lA);
+		}
+
+		// LineString to LineString
+		if (lA && lB) {
+			return lineStringToLineStringDist2(lA, lB);
+		}
+
+		// 其他类型（如Polygon）返回无穷大
+		return std::numeric_limits<double>::infinity();
+	}
+
+	// ============== Tree Matching 核心算法 ==============
+
 	void hw6::RTree::treeMatchNodesByDist(RNode* a, RNode* b, double D2,
 		std::vector<std::pair<Feature, Feature>>* out,
 		RTree::MatchCallback cb, void* userData, bool inclusive) {
+
 		if (!a || !b) return;
 
-		// 快速包围盒下界剪枝
+		// 包围盒最小距离剪枝
 		double mind2 = envelopeMinDistSquared(a->getEnvelope(), b->getEnvelope());
-		if (mind2 > D2) return;
+		if (mind2 > D2) return;  // 包围盒距离大于阈值，直接返回
 
-		// 两叶逐对比较
+		// 两个都是叶节点 - 计算精确几何距离
+		if (a->isLeafNode() && b->isLeafNode()) {
+			size_t numA = a->getFeatureNum();
+			size_t numB = b->getFeatureNum();
 
+			for (size_t i = 0; i < numA; ++i) {
+				const Feature& fa = a->getFeature(i);
+				const Geometry* geomA = fa.getGeom();
+				if (!geomA) continue;
+
+				for (size_t j = 0; j < numB; ++j) {
+					const Feature& fb = b->getFeature(j);
+					const Geometry* geomB = fb.getGeom();
+					if (!geomB) continue;
+
+					// 计算精确几何距离的平方
+					double dist2 = computeGeometryDist2(geomA, geomB);
+
+					// 判断是否满足距离条件
+					bool match = false;
+					if (inclusive) {
+						match = (dist2 <= D2);  // 距离 ≤ D
+					}
+					else {
+						match = (dist2 < D2);   // 距离 < D
+					}
+
+					if (match) {
+						// 输出结果
+						if (out) {
+							out->push_back(std::make_pair(fa, fb));
+						}
+						if (cb) {
+							cb(fa, fb, userData);
+						}
+					}
+				}
+			}
+			return;
+		}
+
+		// a是叶节点，b是内部节点
+		if (a->isLeafNode() && !b->isLeafNode()) {
+			int numChildren = b->getChildNum();
+			for (int i = 0; i < numChildren; ++i) {
+				RNode* childB = b->getChildNode(i);
+				if (childB) {
+					treeMatchNodesByDist(a, childB, D2, out, cb, userData, inclusive);
+				}
+			}
+			return;
+		}
+
+		// a是内部节点，b是叶节点
+		if (!a->isLeafNode() && b->isLeafNode()) {
+			int numChildren = a->getChildNum();
+			for (int i = 0; i < numChildren; ++i) {
+				RNode* childA = a->getChildNode(i);
+				if (childA) {
+					treeMatchNodesByDist(childA, b, D2, out, cb, userData, inclusive);
+				}
+			}
+			return;
+		}
+
+		// 两个都是内部节点 - 递归所有子节点对
+		if (!a->isLeafNode() && !b->isLeafNode()) {
+			int numChildrenA = a->getChildNum();
+			int numChildrenB = b->getChildNum();
+
+			for (int i = 0; i < numChildrenA; ++i) {
+				RNode* childA = a->getChildNode(i);
+				if (!childA) continue;
+
+				for (int j = 0; j < numChildrenB; ++j) {
+					RNode* childB = b->getChildNode(j);
+					if (!childB) continue;
+
+					// 递归处理
+					treeMatchNodesByDist(childA, childB, D2, out, cb, userData, inclusive);
+				}
+			}
+			return;
+		}
 	}
-
 } // namespace hw6
 

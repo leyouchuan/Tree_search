@@ -21,13 +21,13 @@ namespace hw6 {
         using namespace std;
         cout << "***************BPlusTree Test Start****************" << endl;
 
-        if (t == 4) { // 对应 RTree 的 TEST4
+        if (t == 4) {
             cout << "TEST4-BPlus: BPlusTree Construction" << endl;
             int ncase = 2, cct = 2;
 
             // 用例1：station 数据集
             {
-                BPlusTree bpt(8, 16); // 构造参数按你实现的构造函数调整 (order, nodeCapacity 等)
+                BPlusTree bpt(8, 16);
                 vector<Geometry*> geom = readGeom(PROJ_SRC_DIR "/data/station");
                 vector<Feature> features;
                 features.reserve(geom.size());

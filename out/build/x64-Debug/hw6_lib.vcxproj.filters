@@ -13,9 +13,6 @@
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\RTree.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\RTreeTest.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\BPlusTree.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -26,6 +23,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\btree.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\RTreeTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
