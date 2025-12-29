@@ -702,7 +702,7 @@ namespace hw6 {
 		return std::numeric_limits<double>::infinity();
 	}
 
-	// ============== Tree Matching 核心算法 ==============
+	// ============== Tree Matching 实现 ==============
 
 	void hw6::RTree::treeMatchNodesByDist(RNode* a, RNode* b, double D2,
 		std::vector<std::pair<Feature, Feature>>* out,

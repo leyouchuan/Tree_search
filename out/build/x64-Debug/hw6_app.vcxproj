@@ -103,13 +103,11 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\hw6.cpp" />
-    <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\BPlusTree.cpp" />
     <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\Hilbert.h" />
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\Hilbert.cpp" />
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\BPlusTreeTest.cpp" />
     <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\btree.h" />
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\btree.cpp" />
-    <ClInclude Include="G:\SQLwork\hw6\hw6-Option B\BPlusTree.h" />
     <ClCompile Include="G:\SQLwork\hw6\hw6-Option B\RTreeTest.cpp" />
   </ItemGroup>
   <ItemGroup>

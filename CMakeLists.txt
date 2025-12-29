@@ -27,7 +27,7 @@ add_library(
 	"QuadTreeTest.cpp"
 	"RTree.cpp"
 	
- "BPlusTree" "Hilbert.h" "BPlusTree.cpp" "Hilbert.cpp" "BPlusTreeTest.cpp" "btree.h" "btree.cpp" "BPlusTree.h" "RTreeTest.cpp")
+ "Hilbert.h"  "Hilbert.cpp" "BPlusTreeTest.cpp" "btree.h" "btree.cpp"  "RTreeTest.cpp")
 target_link_libraries(
 	${TARGET_NAME}
 	PUBLIC "freeglut_static"
@@ -37,7 +37,7 @@ set(TARGET_NAME "hw6_app")
 add_executable(
 	${TARGET_NAME}
 	"hw6.cpp"
- "BPlusTree" "Hilbert.h" "BPlusTree.cpp" "Hilbert.cpp" "BPlusTreeTest.cpp" "btree.h" "btree.cpp" "BPlusTree.h" "RTreeTest.cpp")
+"Hilbert.h"  "Hilbert.cpp" "BPlusTreeTest.cpp" "btree.h" "btree.cpp"  "RTreeTest.cpp")
 target_link_libraries(
 	${TARGET_NAME}
 	PRIVATE "shape_lib"

@@ -80,6 +80,46 @@ namespace hw6 {
 
             cout << "BPlusTree Construction: " << cct << " / " << ncase << " tests passed" << endl;
         }
+        else if (t == TEST5) {
+            cout << "TEST5: Spatial Join (within distance D)" << endl;
+
+            // 读取点（station）和线（highway）
+            vector<Geometry*> geom_station = readGeom(PROJ_SRC_DIR "/data/station");
+            vector<Feature> stations;
+            for (size_t i = 0; i < geom_station.size(); ++i) stations.emplace_back("", geom_station[i]);
+
+            vector<Geometry*> geom_highway = readGeom(PROJ_SRC_DIR "/data/highway");
+            vector<Feature> highways;
+            for (size_t i = 0; i < geom_highway.size(); ++i) highways.emplace_back("", geom_highway[i]);
+
+            // 构建两棵 RTree
+            BPlusTree bt_st(16),bt_hw(16);
+            bt_st.constructTree(stations);
+            bt_hw.constructTree(highways);
+
+            // 设置距离 D
+            double D = 0.00001;
+            // 返回配对列表
+            auto pairs = bt_st.spatialJoinWithin(bt_hw, D, true);
+
+            cout << "Found " << pairs.size() << " matching pairs within distance " << D << endl;
+
+            // 可选：打印前若干匹配
+            size_t show = std::min<size_t>(pairs.size(), 21);
+            for (size_t i = 0; i < show; ++i) {
+                cout << "Pair " << i << ": ";
+                pairs[i].first.print();
+                cout << " <-> ";
+                pairs[i].second.print();
+                cout << endl;
+            }
+
+            // 清理（释放 Geometry 指针）
+            for (auto g : geom_station) delete g;
+            for (auto g : geom_highway) delete g;
+            geom_station.clear();
+            geom_highway.clear();
+        }
         else if (t == 8) {
             cout << "TEST8-BPlus: Analysis placeholder" << endl;
             // 可实现类似 RTree::analyse 的分析函数

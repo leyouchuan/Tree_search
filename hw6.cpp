@@ -341,6 +341,7 @@ void spatialJoin_QuadTree(double D) {
 	cout << "Total matched pairs: " << resultCnt << endl;
 }
 
+//R-树的空间连接实现_2，tree-matching的spatial join实现见Rtree.cpp
 void spatialJoin_RTree(double D) {
 	cout << "Spatial Join (RTree Tree Matching), distance <= " << D << endl;
 
@@ -392,7 +393,7 @@ void spatialJoin_RTree(double D) {
 }
 
 
-//soatial join========================================
+//B+树的空间连接实现_2，因为是遍历的所以比较慢
 void spatialJoin_BPlusTree(double D) {
 	cout << "Spatial Join (BPlusTree Index), distance <= " << D << endl;
 
@@ -677,7 +678,7 @@ int main(int argc, char* argv[]) {
 		<< "  2  : Test distance between Point and LineString\n"
 		<< "  3  : Test distance between Point and Polygon\n"
 		<< "  4  : Test tree construction\n"
-		<< "  5  : Test Rtree tree matching spatial join\n"
+		<< "  5  : Test spatial join (tree matching for BPlusTree AND R-Tree)\n"
 		<< "  8  : Tree performance analysis\n"
 		<< "  ESC: quit\n"
 		<< endl;
