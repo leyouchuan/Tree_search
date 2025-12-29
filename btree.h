@@ -67,6 +67,7 @@ namespace hw6 {
         void collectLeafFeatures(std::vector<Feature>& features) const;
         //区域查询
         void rangeQuery(const Envelope& rect, uint64_t key, std::vector<Feature>& features);
+        void draw();
 
         friend class BPlusTree;
     };
@@ -92,13 +93,7 @@ namespace hw6 {
         BPlusNode* findLeafContainingOrAfter(uint64_t hValue) const;
         BPlusNode* BPlusTree::findLeafByHilbert(uint64_t hValue) const;
         // 距离计算辅助
-        static double pointDistance(double x1, double y1, double x2, double y2);
         static double pointToEnvelopeDist(double x, double y, const Envelope& env);
-        static double envelopeMinDist(const Envelope& a, const Envelope& b);
-
-        // 空间关联辅助
-        void collectFeaturesInRange(uint64_t hMin, uint64_t hMax,
-            std::vector<Feature>& result) const;
 
     public:
         BPlusTree(int order = 50, int hilbertOrder = 16);
@@ -122,16 +117,16 @@ namespace hw6 {
 
         void rangeQuery(const Envelope& rect, std::vector<Feature>& features) override;
         bool NNQuery(double x, double y, std::vector<Feature>& features) override;
-
-        void draw() override;
-
         // 空间关联
         using MatchCallback = void(*)(const Feature&, const Feature&, void* userData);
+        void treeMatchNodesByDist(BPlusNode* a, BPlusNode* b, double D2, std::vector<std::pair<Feature, Feature>>* out, BPlusTree::MatchCallback cb, void* userData, bool inclusive);
         std::vector<std::pair<Feature, Feature>> spatialJoinWithin(
             BPlusTree& other, double D, bool inclusive = true);
         void spatialJoinWithin(BPlusTree& other, double D,
             MatchCallback cb, void* userData = nullptr,
             bool inclusive = true);
+
+        void draw() override;
 
 
     private:

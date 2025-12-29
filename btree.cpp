@@ -14,6 +14,7 @@
 #include <set>
 #include<functional>
 
+
 namespace hw6 {
 
     // ============================================================================
@@ -782,134 +783,6 @@ namespace hw6 {
 
     // ============================================================================
     // 基于距离的空间关联实现_1，比较快
-    // ============================================================================
-
-    std::vector<std::pair<Feature, Feature>> BPlusTree::spatialJoinWithin(
-        BPlusTree& other, double D, bool inclusive) {
-
-        std::vector<std::pair<Feature, Feature>> result;
-        if (!root_ || !other.root_) return result;
-
-        double D2 = D * D;
-
-        // 收集所有features
-        std::vector<Feature> setA, setB;
-        if (leftmost_) {
-            BPlusNode* node = leftmost_;
-            while (node) {
-                const auto& features = node->getFeatures();
-                setA.insert(setA.end(), features.begin(), features.end());
-                node = node->getNext();
-            }
-        }
-
-        if (other.leftmost_) {
-            BPlusNode* node = other.leftmost_;
-            while (node) {
-                const auto& features = node->getFeatures();
-                setB.insert(setB.end(), features.begin(), features.end());
-                node = node->getNext();
-            }
-        }
-
-        // 执行距离关联
-        joinByDistance(setA, setB, D2, &result, nullptr, nullptr, inclusive);
-
-        return result;
-    }
-
-    void BPlusTree::spatialJoinWithin(BPlusTree& other, double D,
-        MatchCallback cb, void* userData,
-        bool inclusive) {
-        if (!root_ || !other.root_ || !cb) return;
-
-        double D2 = D * D;
-
-        // 收集所有features
-        std::vector<Feature> setA, setB;
-        if (leftmost_) {
-            BPlusNode* node = leftmost_;
-            while (node) {
-                const auto& features = node->getFeatures();
-                setA.insert(setA.end(), features.begin(), features.end());
-                node = node->getNext();
-            }
-        }
-
-        if (other.leftmost_) {
-            BPlusNode* node = other.leftmost_;
-            while (node) {
-                const auto& features = node->getFeatures();
-                setB.insert(setB.end(), features.begin(), features.end());
-                node = node->getNext();
-            }
-        }
-
-        // 执行距离关联
-        joinByDistance(setA, setB, D2, nullptr, cb, userData, inclusive);
-    }
-
-    void BPlusTree::joinByDistance(const std::vector<Feature>& setA,
-        const std::vector<Feature>& setB,
-        double D2,
-        std::vector<std::pair<Feature, Feature>>* out,
-        MatchCallback cb, void* userData,
-        bool inclusive) const {
-        // 使用包围盒快速过滤
-        for (const auto& fa : setA) {
-            const Envelope& envA = fa.getEnvelope();
-
-            for (const auto& fb : setB) {
-                const Envelope& envB = fb.getEnvelope();
-
-                // 包围盒层面的距离剪枝
-                double envDist2 = envelopeMinDist(envA, envB) * envelopeMinDist(envA, envB);
-                if (envDist2 > D2) continue;
-
-                // 精确距离计算
-                if (featureDistanceWithin(fa, fb, D2, inclusive)) {
-                    if (out) {
-                        out->emplace_back(fa, fb);
-                    }
-                    if (cb) {
-                        cb(fa, fb, userData);
-                    }
-                }
-            }
-        }
-    }
-
-    bool BPlusTree::featureDistanceWithin(const Feature& a, const Feature& b,
-        double D2, bool inclusive) {
-        // 计算两个几何对象中心点之间的距离
-        const Envelope& envA = a.getEnvelope();
-        const Envelope& envB = b.getEnvelope();
-
-        double cxA = (envA.getMinX() + envA.getMaxX()) / 2.0;
-        double cyA = (envA.getMinY() + envA.getMaxY()) / 2.0;
-        double cxB = (envB.getMinX() + envB.getMaxX()) / 2.0;
-        double cyB = (envB.getMinY() + envB.getMaxY()) / 2.0;
-
-        double dist2 = (cxA - cxB) * (cxA - cxB) + (cyA - cyB) * (cyA - cyB);
-
-        if (inclusive) {
-            return dist2 <= D2;
-        }
-        else {
-            return dist2 < D2;
-        }
-    }
-
-    // ============================================================================
-    // 辅助函数实现，在geometry里也有，此处为了方便
-    // ============================================================================
-
-    double BPlusTree::pointDistance(double x1, double y1, double x2, double y2) {
-        double dx = x2 - x1;
-        double dy = y2 - y1;
-        return std::sqrt(dx * dx + dy * dy);
-    }
-
     double BPlusTree::pointToEnvelopeDist(double x, double y, const Envelope& env) {
         double dx = 0.0;
         if (x < env.getMinX()) {
@@ -929,61 +802,264 @@ namespace hw6 {
 
         return std::sqrt(dx * dx + dy * dy);
     }
+    static Envelope envelopeFromNode(const BPlusNode* node) {
+        Envelope env;
+        bool init = false;
+        if (!node) return env;
+        if (node->isLeaf()) {
+            size_t n = node->getFeatureCount();
+            for (size_t i = 0; i < n; ++i) {
+                const Feature& f = node->getFeature(i);
+                const Geometry* g = f.getGeom();
+                if (!g) continue;
+                Envelope e = g->getEnvelope();
+                if (!init) {
+                    env = e;
+                    init = true;
+                }
+                else {
+                    env = env.unionEnvelope(e);  // 修复：赋值回env
+                }
+            }
+        }
+        else {
+            size_t n = node->getChildCount();
+            for (size_t i = 0; i < n; ++i) {
+                BPlusNode* c = node->getChild(i);
+                if (!c) continue;
+                Envelope e = envelopeFromNode(c);
+                if (!init) {
+                    env = e;
+                    init = true;
+                }
+                else {
+                    env = env.unionEnvelope(e);  // 修复：赋值回env
+                }
+            }
+        }
+        return env;
+    }
 
-    double BPlusTree::envelopeMinDist(const Envelope& a, const Envelope& b) {
+    // Envelope 最小距离（平方）
+    static inline double envelopeMinDistSquared(const Envelope& a, const Envelope& b) {
         double dx = 0.0;
-        if (a.getMaxX() < b.getMinX()) {
-            dx = b.getMinX() - a.getMaxX();
-        }
-        else if (b.getMaxX() < a.getMinX()) {
-            dx = a.getMinX() - b.getMaxX();
-        }
-
+        if (a.getMaxX() < b.getMinX()) dx = b.getMinX() - a.getMaxX();
+        else if (b.getMaxX() < a.getMinX()) dx = a.getMinX() - b.getMaxX();
         double dy = 0.0;
-        if (a.getMaxY() < b.getMinY()) {
-            dy = b.getMinY() - a.getMaxY();
-        }
-        else if (b.getMaxY() < a.getMinY()) {
-            dy = a.getMinY() - b.getMaxY();
-        }
-
-        return std::sqrt(dx * dx + dy * dy);
+        if (a.getMaxY() < b.getMinY()) dy = b.getMinY() - a.getMaxY();
+        else if (b.getMaxY() < a.getMinY()) dy = a.getMinY() - b.getMaxY();
+        return dx * dx + dy * dy;
     }
 
-    void BPlusTree::collectFeaturesInRange(uint64_t hMin, uint64_t hMax,
-        std::vector<Feature>& result) const {
-        if (!leftmost_) return;
+    // 基本几何距离辅助（点/线段/LineString）——与之前 RTree 版本兼容
+    static double pointToPointDist2(double x1, double y1, double x2, double y2) {
+        double dx = x1 - x2, dy = y1 - y2; return dx * dx + dy * dy;
+    }
+    static double pointToSegmentDist2(double px, double py,
+        double ax, double ay, double bx, double by) {
+        double vx = bx - ax, vy = by - ay;
+        double wx = px - ax, wy = py - ay;
+        double c1 = vx * wx + vy * wy;
+        if (c1 <= 0.0) return pointToPointDist2(px, py, ax, ay);
+        double c2 = vx * vx + vy * vy;
+        if (c2 <= c1) return pointToPointDist2(px, py, bx, by);
+        double t = c1 / c2;
+        double projx = ax + t * vx, projy = ay + t * vy;
+        return pointToPointDist2(px, py, projx, projy);
+    }
+    static double pointToLineStringDist2(double px, double py, const LineString* line) {
+        if (!line || line->numPoints() == 0) return std::numeric_limits<double>::infinity();
+        size_t n = line->numPoints();
+        if (n == 1) {
+            const Point& p0 = line->getPointN(0);
+            return pointToPointDist2(px, py, p0.getX(), p0.getY());
+        }
+        double minD = std::numeric_limits<double>::infinity();
+        for (size_t i = 0; i + 1 < n; ++i) {
+            const Point& a = line->getPointN(i), & b = line->getPointN(i + 1);
+            double d2 = pointToSegmentDist2(px, py, a.getX(), a.getY(), b.getX(), b.getY());
+            if (d2 < minD) minD = d2;
+        }
+        return minD;
+    }
+    static double segmentToSegmentDist2(double a1x, double a1y, double a2x, double a2y,
+        double b1x, double b1y, double b2x, double b2y) {
+        double d1 = pointToSegmentDist2(a1x, a1y, b1x, b1y, b2x, b2y);
+        double d2 = pointToSegmentDist2(a2x, a2y, b1x, b1y, b2x, b2y);
+        double d3 = pointToSegmentDist2(b1x, b1y, a1x, a1y, a2x, a2y);
+        double d4 = pointToSegmentDist2(b2x, b2y, a1x, a1y, a2x, a2y);
+        return std::min({ d1,d2,d3,d4 });
+    }
+    static double lineStringToLineStringDist2(const LineString* A, const LineString* B) {
+        if (!A || !B || A->numPoints() == 0 || B->numPoints() == 0) return std::numeric_limits<double>::infinity();
+        size_t nA = A->numPoints(), nB = B->numPoints();
+        if (nA == 1) { const Point& p = A->getPointN(0); return pointToLineStringDist2(p.getX(), p.getY(), B); }
+        if (nB == 1) { const Point& p = B->getPointN(0); return pointToLineStringDist2(p.getX(), p.getY(), A); }
+        double minD = std::numeric_limits<double>::infinity();
+        for (size_t i = 0; i + 1 < nA; ++i) {
+            const Point& a1 = A->getPointN(i), & a2 = A->getPointN(i + 1);
+            for (size_t j = 0; j + 1 < nB; ++j) {
+                const Point& b1 = B->getPointN(j), & b2 = B->getPointN(j + 1);
+                double d2 = segmentToSegmentDist2(a1.getX(), a1.getY(), a2.getX(), a2.getY(),
+                    b1.getX(), b1.getY(), b2.getX(), b2.getY());
+                if (d2 < minD) minD = d2;
+                if (minD == 0.0) return 0.0;
+            }
+        }
+        return minD;
+    }
+    static double computeGeometryDist2(const Geometry* A, const Geometry* B) {
+        if (!A || !B) return std::numeric_limits<double>::infinity();
+        const Point* pA = dynamic_cast<const Point*>(A);
+        const Point* pB = dynamic_cast<const Point*>(B);
+        const LineString* lA = dynamic_cast<const LineString*>(A);
+        const LineString* lB = dynamic_cast<const LineString*>(B);
+        if (pA && pB) return pointToPointDist2(pA->getX(), pA->getY(), pB->getX(), pB->getY());
+        if (pA && lB) return pointToLineStringDist2(pA->getX(), pA->getY(), lB);
+        if (lA && pB) return pointToLineStringDist2(pB->getX(), pB->getY(), lA);
+        if (lA && lB) return lineStringToLineStringDist2(lA, lB);
+        return std::numeric_limits<double>::infinity();
+    }
 
-        BPlusNode* current = leftmost_;
-        while (current) {
-            const auto& keys = current->getKeys();
-            const auto& features = current->getFeatures();
+    // BPlusTree::featureDistanceWithin（头文件声明的静态方法）实现
+    bool BPlusTree::featureDistanceWithin(const Feature& a, const Feature& b, double D2, bool inclusive) {
+        const Geometry* ga = a.getGeom();
+        const Geometry* gb = b.getGeom();
+        double d2 = computeGeometryDist2(ga, gb);
+        return inclusive ? (d2 <= D2) : (d2 < D2);
+    }
 
-            for (size_t i = 0; i < keys.size(); ++i) {
-                uint64_t h = keys[i];
-                if (h > hMax) return; // 提前退出
-                if (h >= hMin) {
-                    result.push_back(features[i]);
+    // joinByDistance：对两个要素集合进行逐对精确匹配（头文件中声明）
+    void BPlusTree::joinByDistance(const std::vector<Feature>& setA,
+        const std::vector<Feature>& setB,
+        double D2,
+        std::vector<std::pair<Feature, Feature>>* out,
+        MatchCallback cb, void* userData,
+        bool inclusive) const
+    {
+        for (const Feature& fa : setA) {
+            const Geometry* ga = fa.getGeom();
+            if (!ga) continue;
+            for (const Feature& fb : setB) {
+                const Geometry* gb = fb.getGeom();
+                if (!gb) continue;
+                double d2 = computeGeometryDist2(ga, gb);
+                bool match = inclusive ? (d2 <= D2) : (d2 < D2);
+                if (match) {
+                    if (out) out->push_back(std::make_pair(fa, fb));
+                    if (cb) cb(fa, fb, userData);
                 }
             }
-            current = current->getNext();
+        }
+    }
+    // 递归匹配实现：treeMatchNodesByDist（签名与 btree.h 一致）
+    void BPlusTree::treeMatchNodesByDist(BPlusNode* a, BPlusNode* b, double D2,
+        std::vector<std::pair<Feature, Feature>>* out,
+        BPlusTree::MatchCallback cb, void* userData, bool inclusive)
+    {
+        if (!a || !b) return;
+
+        Envelope envA = envelopeFromNode(a);
+        Envelope envB = envelopeFromNode(b);
+
+        double mind2 = envelopeMinDistSquared(envA, envB);
+        if (mind2 > D2) return;
+
+        // 都是叶节点：按要素逐对检查（利用 joinByDistance）
+        if (a->isLeaf() && b->isLeaf()) {
+            std::vector<Feature> aFeatures = a->getFeatures();
+            std::vector<Feature> bFeatures = b->getFeatures();
+            joinByDistance(aFeatures, bFeatures, D2, out, cb, userData, inclusive);
+            return;
+        }
+
+        // a 叶, b 内部
+        if (a->isLeaf() && !b->isLeaf()) {
+            size_t nb = b->getChildCount();
+            for (size_t j = 0; j < nb; ++j) {
+                BPlusNode* childB = b->getChild(j);
+                if (!childB) continue;
+                Envelope envChildB = envelopeFromNode(childB);
+                double lb = envelopeMinDistSquared(envA, envChildB);
+                if (lb > D2) continue;
+                treeMatchNodesByDist(a, childB, D2, out, cb, userData, inclusive);
+            }
+            return;
+        }
+
+        // a 内部, b 叶
+        if (!a->isLeaf() && b->isLeaf()) {
+            size_t na = a->getChildCount();
+            for (size_t i = 0; i < na; ++i) {
+                BPlusNode* childA = a->getChild(i);
+                if (!childA) continue;
+                Envelope envChildA = envelopeFromNode(childA);
+                double lb = envelopeMinDistSquared(envChildA, envB);
+                if (lb > D2) continue;
+                treeMatchNodesByDist(childA, b, D2, out, cb, userData, inclusive);
+            }
+            return;
+        }
+
+        // 两个内部节点
+        size_t na = a->getChildCount();
+        size_t nb = b->getChildCount();
+        for (size_t i = 0; i < na; ++i) {
+            BPlusNode* childA = a->getChild(i);
+            if (!childA) continue;
+            Envelope envChildA = envelopeFromNode(childA);
+            for (size_t j = 0; j < nb; ++j) {
+                BPlusNode* childB = b->getChild(j);
+                if (!childB) continue;
+                Envelope envChildB = envelopeFromNode(childB);
+                double lb = envelopeMinDistSquared(envChildA, envChildB);
+                if (lb > D2) continue;
+                treeMatchNodesByDist(childA, childB, D2, out, cb, userData, inclusive);
+            }
         }
     }
 
+    // 对外接口：vector 返回版本（头文件已声明）
+    std::vector<std::pair<Feature, Feature>> BPlusTree::spatialJoinWithin(BPlusTree& other, double D, bool inclusive) {
+        std::vector<std::pair<Feature, Feature>> out;
+        if (!this->root_ || !other.root_) return out;
+        double D2 = D * D;
+        treeMatchNodesByDist(this->root_, other.root_, D2, &out, nullptr, nullptr, inclusive);
+        return out;
+    }
+
+    // 对外接口：回调版本（头文件已声明）
+    void BPlusTree::spatialJoinWithin(BPlusTree& other, double D, MatchCallback cb, void* userData, bool inclusive) {
+        if (!this->root_ || !other.root_) return;
+        double D2 = D * D;
+        treeMatchNodesByDist(this->root_, other.root_, D2, nullptr, cb, userData, inclusive);
+    }
+
+    void BPlusNode::draw() {
+        if (isLeaf()) {
+            // 叶节点：绘制叶节点的包围盒（如果有），并绘制其中的 features
+            Envelope bbox = envelopeFromNode(this);
+            bbox.draw();
+            for (size_t i = 0; i < getFeatureCount(); ++i) {
+                const Feature& f = getFeature(i);
+                // Feature::draw() 通常会绘制几何本身（点/线）
+                f.draw();
+            }
+        }
+        else {
+            // 内部节点：仅递归调用子节点的 draw（不绘制自身 bbox，或可选择绘制）
+            size_t n = getChildCount();
+            for (size_t i = 0; i < n; ++i) {
+                BPlusNode* c = getChild(i);
+                if (c) c->draw();
+            }
+        }
+    }
+
+    // BPlusTree::draw — 覆盖自 Tree，调用 root_
     void BPlusTree::draw() {
-        // 可视化实现（可选）
-        if (!root_) return;
-
-        // 绘制所有feature的包围盒
-        if (leftmost_) {
-            BPlusNode* node = leftmost_;
-            while (node) {
-                for (size_t i = 0; i < node->getFeatureCount(); ++i) {
-                    node->getFeature(i).draw();
-                }
-                node = node->getNext();
-            }
+        if (root_ != nullptr) {
+            root_->draw();
         }
     }
-
 } // namespace hw6
