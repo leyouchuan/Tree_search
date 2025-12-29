@@ -65,6 +65,8 @@ namespace hw6 {
         void countNodes(int& interiorNum, int& leafNum) const;
         int countHeight(int height) const;
         void collectLeafFeatures(std::vector<Feature>& features) const;
+        //«¯”Ú≤È—Ø
+        void rangeQuery(const Envelope& rect, uint64_t key, std::vector<Feature>& features);
 
         friend class BPlusTree;
     };
@@ -87,7 +89,8 @@ namespace hw6 {
         void rangeQueryByHilbert(uint64_t hMin, uint64_t hMax,
             const Envelope& rect,
             std::vector<Feature>& result) const;
-
+        BPlusNode* findLeafContainingOrAfter(uint64_t hValue) const;
+        BPlusNode* BPlusTree::findLeafByHilbert(uint64_t hValue) const;
         // æ‡¿Îº∆À„∏®÷˙
         static double pointDistance(double x1, double y1, double x2, double y2);
         static double pointToEnvelopeDist(double x, double y, const Envelope& env);
@@ -129,6 +132,7 @@ namespace hw6 {
         void spatialJoinWithin(BPlusTree& other, double D,
             MatchCallback cb, void* userData = nullptr,
             bool inclusive = true);
+
 
     private:
         void deleteTree(BPlusNode* node);

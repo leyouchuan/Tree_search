@@ -6,15 +6,36 @@ namespace hw6 {
 	/*
 	 * QuadNode
 	 */
+
+	 //分裂
+	 //*
 	void QuadNode::split(size_t capacity) {
 		for (int i = 0; i < 4; ++i) {
 			delete children[i];
 			children[i] = nullptr;
 		}
 
-		// Task construction
-		// TODO
+		double midx = (bbox.getMinX() + bbox.getMaxX()) / 2.0;
+		double midy = (bbox.getMinY() + bbox.getMaxY()) / 2.0;
+
+		children[0] = new QuadNode(Envelope(bbox.getMinX(), midx, midy, bbox.getMaxY()));
+		children[1] = new QuadNode(Envelope(midx, bbox.getMaxX(), midy, bbox.getMaxY()));
+		children[2] = new QuadNode(Envelope(bbox.getMinX(), midx, bbox.getMinY(), midy));
+		children[3] = new QuadNode(Envelope(midx, bbox.getMaxX(), bbox.getMinY(), midy));
+
+		for (const auto& f : features)
+			for (int i = 0; i < 4; ++i)
+				if (children[i]->getEnvelope().intersect(f.getEnvelope()))
+					children[i]->features.push_back(f);
+
+		features.clear();
+
+		for (int i = 0; i < 4; ++i)
+			if (children[i]->features.size() > capacity)
+				children[i]->split(capacity);
 	}
+
+
 
 	void QuadNode::countNode(int& interiorNum, int& leafNum) {
 		if (isLeafNode()) {
@@ -38,18 +59,50 @@ namespace hw6 {
 		return height;
 	}
 
+	//区域查询
+	//*
 	void QuadNode::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
 		if (!bbox.intersect(rect))
 			return;
 
 		// Task range query
 		// TODO
+		// 若是叶子节点，直接检查 feature
+		if (isLeafNode()) {
+			for (const Feature& f : this->features) {
+				if (f.getEnvelope().intersect(rect)) {
+					features.push_back(f);
+				}
+			}
+		}
+		// 若不是叶子节点，递归访问子节点
+		else {
+			for (int i = 0; i < 4; ++i) {
+				if (children[i] != nullptr) {
+					children[i]->rangeQuery(rect, features);
+				}
+			}
+		}
+
 	}
 
+
+	//返回叶子节点
+	//*
 	QuadNode* QuadNode::pointInLeafNode(double x, double y) {
 		// Task NN query
 		// TODO
+		// 如果是叶子节点，直接返回自己
+		if (isLeafNode())
+			return this;
 
+		// 否则递归到包含该点的子节点
+		for (int i = 0; i < 4; ++i) {
+			if (children[i] != nullptr &&
+				children[i]->getEnvelope().contain(x, y)) {
+				return children[i]->pointInLeafNode(x, y);
+			}
+		}
 		return nullptr;
 	}
 
@@ -66,6 +119,8 @@ namespace hw6 {
 	/*
 	 * QuadTree
 	 */
+	 //建立树
+	 //*
 	bool QuadTree::constructTree(const std::vector<Feature>& features) {
 		if (features.empty())
 			return false;
@@ -73,7 +128,13 @@ namespace hw6 {
 		// Task construction
 		// TODO
 
-		bbox = Envelope(-74.1, -73.8, 40.6, 40.8); // 注意此行代码需要更新为features的包围盒，或根节点的包围盒
+		bbox = Envelope(std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity());
+		for (const Feature f : features) {
+			bbox = bbox.unionEnvelope(f.getEnvelope());
+		}
+		root = new QuadNode(bbox);
+		root->add(features);
+		root->split(capacity);
 
 		return true;
 	}
@@ -91,21 +152,27 @@ namespace hw6 {
 			height = root->countHeight(0);
 	}
 
+	//*
 	void QuadTree::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
 		features.clear();
 
 		// Task range query
 		// TODO
+		if (root != nullptr) {
+			root->rangeQuery(rect, features);
+		}
 
 		// filter step (选择查询区域与几何对象包围盒相交的几何对象)
 
 		// 注意四叉树区域查询仅返回候选集，精炼步在hw6的rangeQuery中完成
 	}
 
+	//*
 	bool QuadTree::NNQuery(double x, double y, std::vector<Feature>& features) {
 		if (!root || !(root->getEnvelope().contain(x, y)))
 			return false;
 
+		features.clear();
 		// Task NN query
 		// TODO
 
@@ -116,6 +183,17 @@ namespace hw6 {
 		double minDist = std::max(envelope.getWidth(), envelope.getHeight());
 
 		// 注意四叉树邻近查询仅返回候选集，精炼步在hw6的NNQuery中完成
+
+		QuadNode* pLeaf = root->pointInLeafNode(x, y);
+
+		if (pLeaf != nullptr) {
+			for (size_t i = 0; i < pLeaf->getFeatureNum(); i++) {
+				minDist = std::min(minDist, pLeaf->getFeature(i).maxDistance2Envelope(x, y));
+			}
+		}
+
+		Envelope rect(x - minDist, x + minDist, y - minDist, y + minDist);
+		rangeQuery(rect, features);
 
 		return true;
 	}

@@ -45,7 +45,7 @@ namespace hw6 {
 		/*if (!child) return;
 
 		auto it = std::find(children.begin(), children.end(), child);
-		if (it == children.end()) return;       // 子节点不在此节点中
+		if (it == children.end()) return;
 		if (it != children.end() - 1) std::iter_swap(it, children.end() - 1);
 		children.pop_back();
 		if (childrenNum > 0) --childrenNum;
@@ -124,7 +124,6 @@ namespace hw6 {
 				assert(childrenNum == static_cast<int>(children.size()));
 			}
 		}
-
 		// filter step (选择查询区域与几何对象包围盒相交的几何对象)
 		// 注意R树区域查询仅返回候选集，精炼步在hw6的rangeQuery中完成
 	}
@@ -143,7 +142,6 @@ namespace hw6 {
 		for (size_t i = 0; i < childrenNum; ++i) {
 			RNode* c = children[i];
 			if (!c) continue;
-			// 计算将点包含进 child 的增加量（或直接使用 unionArea - area）
 			double inc = enlargementToInclude(c->getEnvelope(), pEnv);
 			double area = envelopeArea(c->getEnvelope());
 			if (inc < bestInc || (inc == bestInc && area < bestArea)) {
@@ -230,7 +228,6 @@ namespace hw6 {
 	}
 
 	void RTree::insertFeature(const Feature& f) {
-		// 假定 f 是点（Envelope 的 min==max）
 		if (!root) {
 			root = new RNode(f.getEnvelope());
 			root->add(f);
@@ -238,23 +235,13 @@ namespace hw6 {
 		}
 
 		Envelope env = f.getEnvelope();
-		// 额外校验（可选）：
-		// if (!(env.minX == env.maxX && env.minY == env.maxY)) { /* 处理非点或抛错 */ }
-
-		// 优先使用点专用选择函数
 		RNode* leaf = this->pointInLeafNode(env.getMaxX(), env.getMinY());
 		if (!leaf) {
-			// 回退：使用通用选择
 			leaf = chooseleaf(root, env);
 			if (!leaf) leaf = root;
 		}
-
-		// 插入
 		leaf->add(f);
-
-		// 处理溢出或更新 bbox
 		if ((int)leaf->getFeatureNum() > maxChildren) {
-			// 按你实现的签名调用 splitNode（此处假定无参数）
 			RNode* newNode = leaf->splitNode(leaf);
 			updateTree(leaf, newNode);
 		}
@@ -266,16 +253,13 @@ namespace hw6 {
 			}
 		}
 	}
-	//quatric spliting 当超过节点所能存储的最大几何特征时分裂节点。推荐的优化：bulk-loading（STR）
+	//quatric spliting 当超过节点所能存储的最大几何特征时分裂节点。
 	RNode* RNode::splitNode(RNode* node) {
 		int minChildren = MIN_CHILDREN_FROM_MAX(maxChildren);
 		if (node->isLeafNode()) {
-			// operate on features
 			int N = static_cast<int>(node->getFeatureNum());
 			if (N <= 1) return nullptr;
-			//if (N < 2) return new RNode(Envelope()); // 或直接返回 nullptr/不分裂
 			std::vector<bool> assigned(N, false);
-			// indices
 			int seed1 = -1, seed2 = -1;
 			double worstWaste = -std::numeric_limits<double>::infinity();
 			for (int i = 0; i < N; ++i) {
@@ -286,14 +270,9 @@ namespace hw6 {
 				}
 			}
 			if (seed1 < 0 || seed2 < 0) {
-				// fallback: assign first to group1, second to group2 if possible
 				seed1 = 0; seed2 = 1;
 			}
-			// 如果 N==1 或 seed 未找到，直接创建新节点并移动一项
 			RNode* group2 = new RNode(Envelope());
-			//group2->parent = node->parent;//=============
-
-			// initialize group1 as node (we will rebuild both)
 			std::vector<Feature> g1_feats; std::vector<Feature> g2_feats;
 			g1_feats.push_back(node->getFeature(seed1)); assigned[seed1] = true;
 			g2_feats.push_back(node->getFeature(seed2)); assigned[seed2] = true;
@@ -301,7 +280,6 @@ namespace hw6 {
 			Envelope g2_box = g2_feats[0].getEnvelope();
 			int remain = N - 2;
 			while (remain > 0) {
-				// forced assignment to satisfy minChildren
 				int need1 = std::max(0, minChildren - (int)g1_feats.size());
 				int need2 = std::max(0, minChildren - (int)g2_feats.size());
 				if (need1 == remain) {
@@ -313,7 +291,6 @@ namespace hw6 {
 					break;
 				}
 
-				// pick entry with greatest difference in enlargement
 				double bestDiff = -1.0; int bestIdx = -1; bool assignToG1 = true;
 				for (int i = 0; i < N; ++i) if (!assigned[i]) {
 					Envelope e = node->getFeature(i).getEnvelope();
@@ -326,11 +303,10 @@ namespace hw6 {
 						if (area1 < area2) assignToG1 = true; else assignToG1 = false;
 					}
 				}
-				if (bestIdx < 0) { // 防御：若未找到，随便取一个未分配的
+				if (bestIdx < 0) {
 					for (int i = 0; i < N; ++i) if (!assigned[i]) { bestIdx = i; break; }
 					if (bestIdx < 0) break;
 				}
-				// assign
 				if (assignToG1) {
 					g1_feats.push_back(node->getFeature(bestIdx));
 					g1_box = g1_box.unionEnvelope(node->getFeature(bestIdx).getEnvelope());
@@ -343,18 +319,14 @@ namespace hw6 {
 				--remain;
 			}
 
-			// replace node's features with g1, create group2 with g2
 			node->features = std::move(g1_feats);
 			node->recalcBBox();
 			group2->features = std::move(g2_feats);
 			group2->recalcBBox();
 			assert(N == static_cast<int>(node->getFeatureNum()) + static_cast<int>(group2->getFeatureNum()));
-			//group2->parent = node->parent;
 			return group2;
 		}
 		else {
-			// internal node: split children vector
-			//int N = static_cast<int>(node->children.size());
 			int N = node->childrenNum;
 			if (N <= 1) return nullptr;
 			std::vector<bool> assigned(N, false);
@@ -366,11 +338,9 @@ namespace hw6 {
 				if (waste > worstWaste) { worstWaste = waste; seed1 = i; seed2 = j; }
 			}
 			if (seed1 < 0 || seed2 < 0) {
-				// fallback: assign first to group1, second to group2 if possible
 				seed1 = 0; seed2 = 1;
 			}
 			RNode* group2 = new RNode(Envelope());
-			//group2->parent = node->parent;//==================
 			std::vector<RNode*> g1_children; std::vector<RNode*> g2_children;
 			g1_children.push_back(node->children[seed1]); assigned[seed1] = true;
 			g2_children.push_back(node->children[seed2]); assigned[seed2] = true;
@@ -381,11 +351,19 @@ namespace hw6 {
 				int need1 = std::max(0, minChildren - (int)g1_children.size());
 				int need2 = std::max(0, minChildren - (int)g2_children.size());
 				if (need1 == remain) {
-					for (int i = 0; i < N; ++i) if (!assigned[i]) { g1_children.push_back(node->children[i]); assigned[i] = true; --remain; }
+					for (int i = 0; i < N; ++i) if (!assigned[i])
+					{ 
+						g1_children.push_back(node->children[i]);
+						assigned[i] = true; --remain;
+					}
 					break;
 				}
 				if (need2 == remain) {
-					for (int i = 0; i < N; ++i) if (!assigned[i]) { g2_children.push_back(node->children[i]); assigned[i] = true; --remain; }
+					for (int i = 0; i < N; ++i) if (!assigned[i]) 
+					{
+						g2_children.push_back(node->children[i]);
+						assigned[i] = true; --remain; 
+					}
 					break;
 				}
 				double bestDiff = -1.0; int bestIdx = -1; bool assignToG1 = true;
@@ -416,19 +394,16 @@ namespace hw6 {
 				assigned[bestIdx] = true;
 				--remain;
 			}
-			// set node children = g1_children, group2 children = g2_children
 			node->children = std::move(g1_children);
 			node->childrenNum = static_cast<int>(node->children.size());
-			for (int i = 0; i < node->childrenNum; ++i) if (node->children[i]) node->children[i]->parent = node;
-			node->recalcBBox();
-			//node->recalcBBox();
+			for (int i = 0; i < node->childrenNum; ++i) if (node->children[i]) 
+				node->children[i]->parent = node;
+			node->recalcBBox();;
 			group2->children = std::move(g2_children);
 			group2->childrenNum = static_cast<int>(group2->children.size());
-			// fix parent pointers
 
-			for (int i = 0; i < group2->childrenNum; ++i) if (group2->children[i]) group2->children[i]->parent = group2;
-
-			//group2->parent = node->parent;
+			for (int i = 0; i < group2->childrenNum; ++i) if (group2->children[i])
+				group2->children[i]->parent = group2;
 
 			group2->recalcBBox();
 			return group2;
@@ -437,18 +412,15 @@ namespace hw6 {
 
 	void RTree::updateTree(RNode* n, RNode* nn) {
 		if (n == root) {
-			// create new root
 			Envelope newRootBox = n->getEnvelope().unionEnvelope(nn->getEnvelope());
 			RNode* newRoot = new RNode(newRootBox);
 			newRoot->add(n);
 			newRoot->add(nn);
-			// add 已设置 n->parent/nn->parent
 			root = newRoot;
 			return;
 		}
 		RNode* parent = n->getParent();
 		if (!parent) {
-			// 防御：若 parent 为空则把新节点提升为 root
 			Envelope newRootBox = n->getEnvelope().unionEnvelope(nn->getEnvelope());
 			RNode* newRoot = new RNode(newRootBox);
 			newRoot->add(n);
@@ -457,10 +429,8 @@ namespace hw6 {
 			return;
 		}
 
-		// 将 nn 加入 parent
 		parent->add(nn);
 		parent->recalcBBox();
-		// 如果超出 capacity，则分裂 parent
 		if (parent->getChildNum() > maxChildren) {
 			RNode* newParent = parent->splitNode(parent);
 			if (newParent) updateTree(parent, newParent);
@@ -485,22 +455,26 @@ namespace hw6 {
 		建议随机选择几何特征插入，或类似AVL树，
 		在插入后调整R-Tree结构。
 		*/
-		if (root) { deleteSubtree(root); root = nullptr; }
-
-		if (features.empty()) { root = nullptr; return true; }
-
+		if (root) 
+		{ 
+			deleteSubtree(root);
+			root = nullptr;
+		}
+		if (features.empty())
+		{ 
+			root = nullptr;
+			return true; 
+		}
 		std::vector<Feature> shuffled = features;
 		std::mt19937_64 rng(std::random_device{}());
 		std::shuffle(shuffled.begin(), shuffled.end(), rng);
-
-		for (const Feature& f : features) insertFeature(f);
-
-		if (root) root->recalcBBox();
-
+		for (const Feature& f : features)
+			insertFeature(f);
+		if (root)
+			root->recalcBBox();
 		bbox = root ? root->getEnvelope() : hw6::Envelope();
 
 		return true;
-
 	}
 
 	void RTree::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
@@ -516,12 +490,10 @@ namespace hw6 {
 
 		features.clear();
 
-		// 初始 minDist：根包围盒的较大边长（保守）
 		double minDist = std::max(rootEnv.getWidth(), rootEnv.getHeight());
 
-		// 尝试用包含点的叶节点或其子节点快速缩小 minDist
 		RNode* pNode = root->pointInLeafNode(x, y);
-		if (!pNode) { // 保护性检查（若实现保证不为空可去掉）
+		if (!pNode) { 
 			Envelope rect(x - minDist, x + minDist, y - minDist, y + minDist);
 			rangeQuery(rect, features);
 			return !features.empty();
@@ -539,9 +511,6 @@ namespace hw6 {
 			for (int i = 0; i < cn; ++i) {
 				RNode* child = pNode->getChildNode(i);
 				if (!child) continue;
-				// 用子节点包围盒的 maxDistance2Envelope（假设 RNode 提供该接口），
-				// 否则退回为遍历其 features（但那更慢）
-				// 这里仍使用 child->getFeatureNum 遍历 features 保持通用性
 				size_t fn = child->getFeatureNum();
 				for (size_t j = 0; j < fn; ++j) {
 					minDist = std::min(minDist, child->getFeature(j).maxDistance2Envelope(x, y));
@@ -550,8 +519,6 @@ namespace hw6 {
 				if (minDist <= 0.0) break;
 			}
 		}
-
-		// 若 minDist 非负（通常是），构造查询矩形并执行 rangeQuery
 		if (minDist < 0.0) minDist = 0.0;
 		Envelope rect(x - minDist, x + minDist, y - minDist, y + minDist);
 		rangeQuery(rect, features);
@@ -626,7 +593,7 @@ namespace hw6 {
 		double mind2 = envelopeMinDistSquared(a->getEnvelope(), b->getEnvelope());
 		if (mind2 > D2) return;
 
-		// 两叶：逐对比较（外层选较小集合）
+		// 两叶逐对比较
 
 	}
 

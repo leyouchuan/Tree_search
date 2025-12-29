@@ -1,7 +1,4 @@
-﻿// hw6.cpp : 定义控制台应用程序的入口点。
-//
-
-#include "Common.h"
+﻿#include "Common.h"
 #include "Geometry.h"
 #include "shapelib/shapefil.h"
 
@@ -17,11 +14,11 @@
 #include <memory>
 #include <vector>
 
-#define USE_BPLUSTREE
+//#define USE_BPLUSTREE
 //#define USE_RTREE
 #ifdef USE_RTREE
 #include "RTree.h"
-using TreeTy = hw6::RTree;
+//using TreeTy = hw6::RTree;
 #elif defined(USE_BPLUSTREE)
 #include "btree.h"
 using TreeTy = hw6::BPlusTree;
@@ -29,7 +26,6 @@ using TreeTy = hw6::BPlusTree;
 #include "QuadTree.h"
 using TreeTy = hw6::QuadTree;
 #endif
-
 
 using namespace std;
 
@@ -242,45 +238,6 @@ void rangeQuery() {
 	else if (mode == RANGELINE)
 		roadTree->rangeQuery(selectedRect, candidateFeatures);
 
-	// refine step (精确判断时，需要去重，避免查询区域和几何对象的重复计算)
-	// TODO
-	/*selectedFeatures.clear();
-	std::vector<std::string> seenNames;
-	std::vector<const hw6::Geometry*> seenGeoms;
-
-	for (const auto& f : candidateFeatures) {
-		const std::string& id = f.getName();
-		bool seen = false;
-		if (!id.empty()) {
-			for (const auto& s : seenNames) {
-				if (s == id) { seen = true; break; }
-			}
-			if (seen) continue;
-			seenNames.push_back(id);
-		}
-		else {
-			const hw6::Geometry* g = f.getGeom();
-			if (!g) continue;
-			for (const auto& pg : seenGeoms) {
-				if (pg == g) { seen = true; break; }
-			}
-			if (seen) continue;
-			seenGeoms.push_back(g);
-		}
-
-		const hw6::Geometry* geom = f.getGeom();
-		if (!geom) continue;
-
-		// 用包围盒相交作为判断（若有更精确方法可替换）
-		const hw6::Envelope& fe = f.getEnvelope();
-		bool accept = !(fe.getMaxX() < selectedRect.getMinX() ||
-			fe.getMinX() > selectedRect.getMaxX() ||
-			fe.getMaxY() < selectedRect.getMinY() ||
-			fe.getMinY() > selectedRect.getMaxY());
-		if (accept) selectedFeatures.push_back(f);
-	}
-
-	glutPostRedisplay();*/
 	selectedFeatures.clear();
 	size_t numOfFeatures = candidateFeatures.size();
 	//去重
@@ -298,6 +255,7 @@ void rangeQuery() {
 	}
 }
 
+
 /*
  * 邻近查询
  */
@@ -305,7 +263,6 @@ void NNQuery(hw6::Point p) {
 	vector<hw6::Feature> candidateFeatures;
 
 	const auto& env = (mode == NNPOINT ? pointTree->getEnvelope() : roadTree->getEnvelope());
-	//printf("NNQuery tree env: (%f,%f)-(%f,%f)\n", env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY());
 	// filter step (使用四叉树获得距离较近的几何特征候选集)
 	if (mode == NNPOINT)
 		pointTree->NNQuery(p.getX(), p.getY(), candidateFeatures);
@@ -318,13 +275,8 @@ void NNQuery(hw6::Point p) {
 	double bestDist = std::numeric_limits<double>::infinity();
 	int bestIdx = -1;
 	for (size_t i = 0; i < candidateFeatures.size(); ++i) {
-		printf("query pt=(%.12f,%.12f)\n", p.getX(), p.getY());
 		const auto& f = candidateFeatures[i];
-		//double d_env = envelopeDist(f.getEnvelope(), p.getX(), p.getY());
 		double d_geom = f.distance(p.getX(), p.getY());
-		printf("geomDist raw=%a\n", f.distance(p.getX(), p.getY()));
-		printf("cand[%zu] name=%s geom=%p geomDist=%.12f\n",
-			i, f.getName().c_str(), (void*)f.getGeom(),  d_geom);
 		if (d_geom < bestDist) {
 			bestDist = d_geom;
 			bestIdx = (int)i;
@@ -333,53 +285,163 @@ void NNQuery(hw6::Point p) {
 	if (bestIdx >= 0) {
 		selectedFeatures.push_back(candidateFeatures[bestIdx]);
 		nearestFeature = candidateFeatures[bestIdx];
-		printf("chosen idx=%d name=%s geomDist=%.12f\n", bestIdx, nearestFeature.getName().c_str(), bestDist);
 	}
 	else {
 		nearestFeature = hw6::Feature();
 	}
-	/*size_t numOfFeatures = candidateFeatures.size();
-	for (size_t i = 0; i < numOfFeatures; i++) {
-		int n = selectedFeatures.size();
-		bool f = true;
-		for (size_t j = 0; j < n; j++) {
-			if (selectedFeatures[j].getGeom() == candidateFeatures[i].getGeom()) {
-				f = false;
+
+}
+
+void spatialJoin_QuadTree(double D) {
+	cout << "Spatial Join (QuadTree Nested Loop with Index), distance <= " << D << endl;
+
+	if (!pointTree) {
+		cout << "Point tree not constructed." << endl;
+		return;
+	}
+
+	size_t resultCnt = 0;
+
+	// 外循环：道路（Nested Loop 的 outer relation）
+	for (const auto& roadFeature : roads) {
+		const hw6::Geometry* g = roadFeature.getGeom();
+		const hw6::LineString* road =
+			dynamic_cast<const hw6::LineString*>(g);
+		if (!road) continue;
+
+		// 1. 构造扩展后的 Envelope（MBR + buffer）
+		const hw6::Envelope& e = road->getEnvelope();
+		hw6::Envelope queryEnv(
+			e.getMinX() - D,
+			e.getMaxX() + D,
+			e.getMinY() - D,
+			e.getMaxY() + D
+		);
+
+		// 2. QuadTree 索引过滤（Index Scan）
+		vector<hw6::Feature> candidates;
+		pointTree->rangeQuery(queryEnv, candidates);
+
+		// 3. 精确距离判断（Refine）
+		for (const auto& stationFeature : candidates) {
+			const hw6::Point* station =
+				dynamic_cast<const hw6::Point*>(stationFeature.getGeom());
+			if (!station) continue;
+
+			double dist = station->distance(road);
+			if (dist <= D) {
+				// 输出结果对
+				cout << "[MATCH] Road " << roadFeature.getName()
+					<< "  <->  Station " << stationFeature.getName()
+					<< "  dist = " << dist << endl;
+				resultCnt++;
 			}
-		}
-		if (f) {
-			selectedFeatures.push_back(candidateFeatures[i]);
 		}
 	}
-	numOfFeatures = 0;
-	if (!selectedFeatures.empty()) {
-		numOfFeatures = selectedFeatures.size();
-		size_t index = 0;
-		double minDist = 0;
-		if (mode == NNPOINT) {
-			minDist = p.distance((hw6::Point*)(selectedFeatures[0].getGeom()));
-		}
-		else if (mode == NNLINE) {
-			minDist = selectedFeatures[0].distance(p.getX(), p.getY());
-		}
-		for (size_t i = 0; i < numOfFeatures; i++) {
-			double dist = 0;
-			if (mode == NNPOINT) {
-				dist = p.distance((hw6::Point*)(selectedFeatures[i].getGeom()));
-			}
-			else if (mode == NNLINE) {
-				dist = selectedFeatures[i].distance(p.getX(), p.getY());
-			}
-			if (dist < minDist) {
-				index = i;
-				minDist = dist;
-			}
-		}
-		nearestFeature = selectedFeatures[index];
+
+	cout << "Total matched pairs: " << resultCnt << endl;
+}
+
+void spatialJoin_RTree(double D) {
+	cout << "Spatial Join (RTree Tree Matching), distance <= " << D << endl;
+
+	if (!pointTree || !roadTree) {
+		cout << "Tree not constructed." << endl;
+		return;
 	}
-	else {
-		nearestFeature = hw6::Feature();
-	}*/
+
+	size_t resultCnt = 0;
+
+	// 外层：道路
+	for (const auto& roadFeature : roads) {
+		const auto* road =
+			dynamic_cast<const hw6::LineString*>(roadFeature.getGeom());
+		if (!road) continue;
+
+		// 扩展 Envelope
+		const auto& e = road->getEnvelope();
+		hw6::Envelope queryEnv(
+			e.getMinX() - D,
+			e.getMaxX() + D,
+			e.getMinY() - D,
+			e.getMaxY() + D
+		);
+
+		// RTree rangeQuery 过滤
+		vector<hw6::Feature> candidates;
+		pointTree->rangeQuery(queryEnv, candidates);
+
+		// 精确判断距离
+		for (const auto& stationFeature : candidates) {
+			const auto* station =
+				dynamic_cast<const hw6::Point*>(stationFeature.getGeom());
+			if (!station) continue;
+
+			double dist = station->distance(road);
+			if (dist <= D) {
+				cout << "[MATCH] Road "
+					<< roadFeature.getName()
+					<< " <-> Station "
+					<< stationFeature.getName()
+					<< " dist=" << dist << endl;
+				resultCnt++;
+			}
+		}
+	}
+
+	cout << "Total matched pairs: " << resultCnt << endl;
+}
+
+
+//soatial join========================================
+void spatialJoin_BPlusTree(double D) {
+	cout << "Spatial Join (BPlusTree Index), distance <= " << D << endl;
+
+	if (!pointTree) {
+		cout << "Point tree not constructed." << endl;
+		return;
+	}
+
+	size_t resultCnt = 0;
+
+	// 外循环：道路（outer relation）
+	for (const auto& roadFeature : roads) {
+		const hw6::Geometry* g = roadFeature.getGeom();
+		const hw6::LineString* road =
+			dynamic_cast<const hw6::LineString*>(g);
+		if (!road) continue;
+
+		// 1. 构造扩展后的 Envelope（MBR + buffer）
+		const hw6::Envelope& e = road->getEnvelope();
+		hw6::Envelope queryEnv(
+			e.getMinX() - D,
+			e.getMaxX() + D,
+			e.getMinY() - D,
+			e.getMaxY() + D
+		);
+
+		// 2. B+Tree rangeQuery（Index Scan）
+		vector<hw6::Feature> candidates;
+		pointTree->rangeQuery(queryEnv, candidates);
+
+		// 3. 精确距离判断（Refine）
+		for (const auto& stationFeature : candidates) {
+			const hw6::Point* station =
+				dynamic_cast<const hw6::Point*>(stationFeature.getGeom());
+			if (!station) continue;
+
+			double dist = station->distance(road);
+			if (dist <= D) {
+				// 输出结果对
+				cout << "[MATCH] Road " << roadFeature.getName()
+					<< "  <->  Station " << stationFeature.getName()
+					<< "  dist = " << dist << endl;
+				resultCnt++;
+			}
+		}
+	}
+
+	cout << "Total matched pairs: " << resultCnt << endl;
 }
 
 /*
@@ -413,7 +475,6 @@ void display() {
 	glLoadIdentity();
 
 	const hw6::Envelope bbox = pointTree->getEnvelope();
-
 	glOrtho(bbox.getMinX() - 0.001, bbox.getMaxX() + 0.001,
 		bbox.getMinY() - 0.001, bbox.getMaxY() + 0.001,
 		-1.0, 1.0);
@@ -437,11 +498,11 @@ void display() {
 	// 四叉树绘制
 	if (showTree) {
 		glColor3d(0.0, 146 / 255.0, 247 / 255.0);
+
 		if (mode == RANGELINE || mode == NNLINE)
 			roadTree->draw();
 		else
 			pointTree->draw();
-
 	}
 
 	// 离鼠标最近点绘制
@@ -548,6 +609,17 @@ void processNormalKeys(unsigned char key, int x, int y) {
 		mode = RANGEPOINT;
 		firstPoint = true;
 		break;
+	case 'A':
+	case 'a':
+		spatialJoin_QuadTree(0.00001); // 距离阈值 100
+		break;
+	case 'C':
+	case 'c':
+		spatialJoin_RTree(0.00001); // 距离阈值
+		break;
+	case 'D':
+		spatialJoin_BPlusTree(0.00001); // 距离阈值
+		break;
 	case 'B':
 	case 'b':
 		loadStationData();
@@ -595,6 +667,9 @@ int main(int argc, char* argv[]) {
 		<< "  s  : range search for stations\n"
 		<< "  N  : nearest road search\n"
 		<< "  n  : nearest station search\n"
+		<< "  A/a  : spatial join (Nested Loop with Index)(QuadTree)\n"
+		<< "  C/c  : spatial join (Tree Matching)(RTree)\n"
+		<< "  D  : spatial join (BPlusTree)\n"
 		<< "  B/b: Bicycle data\n"
 		<< "  T/t: Taxi data\n"
 		<< "  R/r: show Road\n"

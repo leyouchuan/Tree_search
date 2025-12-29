@@ -27,14 +27,14 @@ namespace hw6 {
 
             // 用例1：station 数据集
             {
-                BPlusTree bpt(8, 16);
+                BPlusTree bpt(8, 16); // 构造参数按你实现的构造函数调整 (order, nodeCapacity 等)
                 vector<Geometry*> geom = readGeom(PROJ_SRC_DIR "/data/station");
                 vector<Feature> features;
                 features.reserve(geom.size());
                 for (size_t i = 0; i < geom.size(); ++i) features.emplace_back("", geom[i]);
 
                 bool ok = bpt.constructTree(features); // 若你的实现返回 bool
-                (void)ok; // 忽略或可用于断言
+                (void)ok;
 
                 int height = 0, interiorNum = 0, leafNum = 0;
                 bpt.countHeight(height);
@@ -87,12 +87,20 @@ namespace hw6 {
 
         cout << "***************BPlusTree Test End******************" << endl;
     }
+
     void forConstCapAnalyseBPlusTree(const std::vector<Feature>& features, int childNum, int maxNum, int step) {
         if (childNum <= maxNum) {
-            BPlusTree rtree(childNum);
-            rtree.constructTree(features);
+            BPlusTree bpt(childNum); // 构造参数依据你的类签名调整
+            bpt.constructTree(features);
 
-            // TODO 与四叉树进行比较
+            // TODO: 在这里输出或记录 height/interior/leaf 等统计以便与四叉树比较
+            int height = 0, interior = 0, leaf = 0;
+            bpt.countHeight(height);
+            bpt.countNode(interior, leaf);
+            std::cout << "BPlusTree cap=" << childNum
+                << " height=" << height
+                << " interior=" << interior
+                << " leaf=" << leaf << std::endl;
 
             forConstCapAnalyseBPlusTree(features, childNum + step, maxNum, step);
         }
@@ -114,7 +122,7 @@ namespace hw6 {
 
         srand(time(nullptr));
 
-        /*TODO:实现forConstCapAnalyseRTree */
         forConstCapAnalyseBPlusTree(features, 70, 200, 10);
     }
+
 } // namespace hw6

@@ -36,6 +36,8 @@ namespace hw6 {
 
         // return grid size = 2^order
         uint64_t gridSize() const;
+
+        uint32_t getN() const { return static_cast<uint32_t>(1u << order_); }
     };
 
 } // namespace hw6

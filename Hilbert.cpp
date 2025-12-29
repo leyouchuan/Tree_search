@@ -29,7 +29,7 @@ namespace hw6 {
     uint64_t Hilbert::gridSize() const
     { return n_; }
     //将给定点 (x,y) 按 bbox 归一化并映射到 Hilbert 网格坐标 (xi, yi)
-    void Hilbert::normalizeToGrid(double x, double y, uint32_t& xi, uint32_t& yi) const {
+    /*void Hilbert::normalizeToGrid(double x, double y, uint32_t& xi, uint32_t& yi) const {
         double xmin = bbox_.getMinX();
         double xmax = bbox_.getMaxX();
         double ymin = bbox_.getMinY();
@@ -56,6 +56,27 @@ namespace hw6 {
 
         if (xi >= n_) xi = static_cast<uint32_t>(n_ - 1);
         if (yi >= n_) yi = static_cast<uint32_t>(n_ - 1);
+    }*/
+    void Hilbert::normalizeToGrid(double x, double y, uint32_t& xi, uint32_t& yi) const {
+        const Envelope& bb = bbox_;
+        double xmin = bb.getMinX(), ymin = bb.getMinY();
+        double xmax = bb.getMaxX(), ymax = bb.getMaxY();
+        double dx = xmax - xmin; if (dx <= 0) dx = 1e-9;
+        double dy = ymax - ymin; if (dy <= 0) dy = 1e-9;
+        double rx = (x - xmin) / dx;
+        double ry = (y - ymin) / dy;
+        if (rx < 0) rx = 0; if (rx > 1) rx = 1;
+        if (ry < 0) ry = 0; if (ry > 1) ry = 1;
+
+        uint32_t n = getN(); // n = 1<<order_
+        // map to [0, n-1] using floor(rx * n) but clamp to n-1
+        double gx = rx * static_cast<double>(n);
+        double gy = ry * static_cast<double>(n);
+        uint32_t tx = static_cast<uint32_t>(std::floor(gx));
+        uint32_t ty = static_cast<uint32_t>(std::floor(gy));
+        if (tx >= n) tx = n - 1;
+        if (ty >= n) ty = n - 1;
+        xi = tx; yi = ty;
     }
 
     uint64_t Hilbert::pointToHilbert(double x, double y) const {

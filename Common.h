@@ -8,6 +8,7 @@
 #define NNLINE 4
 #define QUADTREE 5
 #define RTREE 6
+#define POINTJOINLINE 7
 
 #define TEST1 1
 #define TEST2 2
@@ -18,6 +19,9 @@
 #define TEST7 7
 #define TEST8 8
 
+
+//#define USE_RTREE
+//#define USE_BPLUSTREE
 //#define USE_RTREE
 
 #endif
