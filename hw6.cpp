@@ -666,7 +666,7 @@ int main(int argc, char* argv[]) {
 		<< "  N  : nearest road search\n"
 		<< "  n  : nearest station search\n"
 		<< "  A/a  : spatial join (Nested Loop with Index)(QuadTree)\n"
-		<< "  C/c  : spatial join (Tree Matching)(RTree)\n"
+		<< "  C/c  : spatial join (RTree )\n"
 		<< "  D  : spatial join (BPlusTree)\n"
 		<< "  B/b: Bicycle data\n"
 		<< "  T/t: Taxi data\n"

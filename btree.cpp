@@ -802,6 +802,7 @@ namespace hw6 {
 
         return std::sqrt(dx * dx + dy * dy);
     }
+
     static Envelope envelopeFromNode(const BPlusNode* node) {
         Envelope env;
         bool init = false;
@@ -853,6 +854,7 @@ namespace hw6 {
     static double pointToPointDist2(double x1, double y1, double x2, double y2) {
         double dx = x1 - x2, dy = y1 - y2; return dx * dx + dy * dy;
     }
+
     static double pointToSegmentDist2(double px, double py,
         double ax, double ay, double bx, double by) {
         double vx = bx - ax, vy = by - ay;
@@ -865,6 +867,7 @@ namespace hw6 {
         double projx = ax + t * vx, projy = ay + t * vy;
         return pointToPointDist2(px, py, projx, projy);
     }
+
     static double pointToLineStringDist2(double px, double py, const LineString* line) {
         if (!line || line->numPoints() == 0) return std::numeric_limits<double>::infinity();
         size_t n = line->numPoints();
@@ -880,6 +883,7 @@ namespace hw6 {
         }
         return minD;
     }
+
     static double segmentToSegmentDist2(double a1x, double a1y, double a2x, double a2y,
         double b1x, double b1y, double b2x, double b2y) {
         double d1 = pointToSegmentDist2(a1x, a1y, b1x, b1y, b2x, b2y);
@@ -888,6 +892,7 @@ namespace hw6 {
         double d4 = pointToSegmentDist2(b2x, b2y, a1x, a1y, a2x, a2y);
         return std::min({ d1,d2,d3,d4 });
     }
+
     static double lineStringToLineStringDist2(const LineString* A, const LineString* B) {
         if (!A || !B || A->numPoints() == 0 || B->numPoints() == 0) return std::numeric_limits<double>::infinity();
         size_t nA = A->numPoints(), nB = B->numPoints();
@@ -906,6 +911,7 @@ namespace hw6 {
         }
         return minD;
     }
+
     static double computeGeometryDist2(const Geometry* A, const Geometry* B) {
         if (!A || !B) return std::numeric_limits<double>::infinity();
         const Point* pA = dynamic_cast<const Point*>(A);
@@ -926,7 +932,6 @@ namespace hw6 {
         double d2 = computeGeometryDist2(ga, gb);
         return inclusive ? (d2 <= D2) : (d2 < D2);
     }
-
 
     void BPlusTree::joinByDistance(const std::vector<Feature>& setA,
         const std::vector<Feature>& setB,
@@ -963,7 +968,6 @@ namespace hw6 {
         double mind2 = envelopeMinDistSquared(envA, envB);
         if (mind2 > D2) return;
 
-        // 都是叶节点：按要素逐对检查（利用 joinByDistance）
         if (a->isLeaf() && b->isLeaf()) {
             std::vector<Feature> aFeatures = a->getFeatures();
             std::vector<Feature> bFeatures = b->getFeatures();
@@ -1017,7 +1021,6 @@ namespace hw6 {
         }
     }
 
-
     std::vector<std::pair<Feature, Feature>> BPlusTree::spatialJoinWithin(BPlusTree& other, double D, bool inclusive) {
         std::vector<std::pair<Feature, Feature>> out;
         if (!this->root_ || !other.root_) return out;
@@ -1034,17 +1037,14 @@ namespace hw6 {
 
     void BPlusNode::draw() {
         if (isLeaf()) {
-            // 叶节点：绘制叶节点的包围盒（如果有），并绘制其中的 features
             Envelope bbox = envelopeFromNode(this);
             bbox.draw();
             for (size_t i = 0; i < getFeatureCount(); ++i) {
                 const Feature& f = getFeature(i);
-                // Feature::draw() 通常会绘制几何本身（点/线）
                 f.draw();
             }
         }
         else {
-            // 内部节点：仅递归调用子节点的 draw（不绘制自身 bbox，或可选择绘制）
             size_t n = getChildCount();
             for (size_t i = 0; i < n; ++i) {
                 BPlusNode* c = getChild(i);
